@@ -1,0 +1,7 @@
+# Local learning files
+/devpost/learner-profile.md
+
+# Environment files
+.env
+.env.*
+!.env.example
