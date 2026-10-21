@@ -1,50 +1,45 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import {
+  buildMilestones,
+  buildStudyPlan,
+  MILESTONE_ORDER,
+  rescheduleMissedSessions,
+  type AssignmentSettings,
+  type Commitment,
+  type StudySession,
+} from './lib/scheduler'
 import './App.css'
 
-type Assignment = {
-  title: string
-  dueDate: string
-  sessionMinutes: number
-}
+const daysOfWeek = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const
 
-type Commitment = {
-  id: string
-  title: string
-  date: string
-  start: string
-  end: string
-}
-
-type StudySession = {
-  id: string
-  title: string
-  start: string
-  end: string
-}
-
-const sampleAssignment: Assignment = {
+const initialAssignment: AssignmentSettings = {
   title: 'Research Essay',
   dueDate: '2026-10-27',
+  totalWorkMinutes: 360,
   sessionMinutes: 90,
+  bufferMinutes: 60,
+  studyDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
+  studyStart: '09:00',
+  studyEnd: '18:00',
 }
 
-const sampleCommitments: Commitment[] = [
+const initialCommitments: Commitment[] = [
   {
-    id: '1',
+    id: 'c1',
     title: 'Chemistry Lab',
     date: '2026-10-23',
     start: '09:00',
     end: '11:00',
   },
   {
-    id: '2',
+    id: 'c2',
     title: 'Part-time Job',
     date: '2026-10-24',
     start: '18:00',
     end: '21:00',
   },
   {
-    id: '3',
+    id: 'c3',
     title: 'Club Meeting',
     date: '2026-10-26',
     start: '17:30',
@@ -52,19 +47,8 @@ const sampleCommitments: Commitment[] = [
   },
 ]
 
-function toDateTime(day: Date, time: string): Date {
-  const [hours, minutes] = time.split(':').map(Number)
-  const date = new Date(day)
-  date.setHours(hours, minutes, 0, 0)
-  return date
-}
-
-function dateKey(date: Date): string {
-  return date.toISOString().slice(0, 10)
-}
-
-function formatDateKey(value: string): string {
-  return new Date(`${value}T00:00:00`).toLocaleDateString(undefined, {
+function formatDate(value: string): string {
+  return new Date(`${value}T12:00:00`).toLocaleDateString(undefined, {
     month: 'short',
     day: 'numeric',
     weekday: 'short',
@@ -78,93 +62,47 @@ function formatTime(date: Date): string {
   })
 }
 
-function minutesBetween(start: Date, end: Date): number {
-  return Math.max(0, (end.getTime() - start.getTime()) / 60000)
-}
-
-function buildStudySessions(
-  assignment: Assignment,
-  commitments: Commitment[],
-): StudySession[] {
-  const dueDate = new Date(`${assignment.dueDate}T23:59:59`)
-  const bufferMinutes = 60
-  const sessions: StudySession[] = []
-
-  for (let offset = 0; offset < 10; offset += 1) {
-    const candidateDay = new Date(dueDate)
-    candidateDay.setDate(dueDate.getDate() - offset)
-    const dayCommitments = commitments.filter(
-      (commitment) => commitment.date === dateKey(candidateDay),
-    )
-
-    const openSegments: Array<{ start: Date; end: Date }> = []
-    let cursor = toDateTime(candidateDay, '08:00')
-    const dayEndDate = toDateTime(candidateDay, '20:00')
-
-    const sortedCommitments = [...dayCommitments].sort(
-      (a, b) =>
-        toDateTime(candidateDay, a.start).getTime() -
-        toDateTime(candidateDay, b.start).getTime(),
-    )
-
-    for (const commitment of sortedCommitments) {
-      const start = toDateTime(candidateDay, commitment.start)
-      const end = toDateTime(candidateDay, commitment.end)
-      if (start > cursor) {
-        openSegments.push({ start: new Date(cursor), end: new Date(start) })
-      }
-      cursor = new Date(Math.max(cursor.getTime(), end.getTime()))
-    }
-
-    if (cursor < dayEndDate) {
-      openSegments.push({ start: new Date(cursor), end: new Date(dayEndDate) })
-    }
-
-    for (const segment of openSegments) {
-      const segmentDuration = minutesBetween(segment.start, segment.end)
-      if (segmentDuration < assignment.sessionMinutes) continue
-
-      const untilDue = minutesBetween(segment.end, dueDate)
-      if (untilDue < bufferMinutes) continue
-
-      const plannedEnd = new Date(segment.end)
-      const plannedStart = new Date(plannedEnd)
-      plannedStart.setMinutes(plannedStart.getMinutes() - assignment.sessionMinutes)
-
-      if (plannedStart < segment.start) continue
-
-      const sessionStart = new Date(plannedStart)
-      const sessionEnd = new Date(plannedEnd)
-      const sessionKey = `${dateKey(sessionStart)}-${sessionStart.getTime()}`
-
-      sessions.push({
-        id: sessionKey,
-        title: assignment.title,
-        start: sessionStart.toISOString(),
-        end: sessionEnd.toISOString(),
-      })
-    }
-  }
-
-  return sessions
-    .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
-    .slice(0, 4)
+function formatMinutes(value: number): string {
+  const hours = Math.floor(value / 60)
+  const minutes = value % 60
+  if (hours === 0) return `${minutes} min`
+  if (minutes === 0) return `${hours} hr`
+  return `${hours} hr ${minutes} min`
 }
 
 function App() {
-  const [assignment, setAssignment] = useState<Assignment>(sampleAssignment)
-  const [commitments, setCommitments] = useState<Commitment[]>(sampleCommitments)
+  const [assignment, setAssignment] = useState<AssignmentSettings>(initialAssignment)
+  const [commitments, setCommitments] = useState<Commitment[]>(initialCommitments)
   const [draftCommitment, setDraftCommitment] = useState({
     title: 'Work Shift',
     date: '2026-10-25',
     start: '12:00',
     end: '15:00',
   })
-
-  const sessions = useMemo(
-    () => buildStudySessions(assignment, commitments),
-    [assignment, commitments],
+  const [now] = useState(() => new Date())
+  const [sessions, setSessions] = useState<StudySession[]>(() =>
+    buildStudyPlan(initialAssignment, initialCommitments, now).sessions,
   )
+
+  const plan = useMemo(
+    () => buildStudyPlan(assignment, commitments, now),
+    [assignment, commitments, now],
+  )
+
+  useEffect(() => {
+    setSessions(plan.sessions)
+  }, [plan.sessions])
+
+  const milestones = useMemo(
+    () => buildMilestones(assignment.totalWorkMinutes),
+    [assignment.totalWorkMinutes],
+  )
+
+  const completedMinutes = sessions
+    .filter((session) => session.status === 'completed')
+    .reduce((total) => total + assignment.sessionMinutes, 0)
+
+  const unscheduledMinutes = Math.max(plan.remainingWorkMinutes, 0)
 
   const addCommitment = () => {
     if (!draftCommitment.title || !draftCommitment.date || !draftCommitment.start || !draftCommitment.end) {
@@ -174,7 +112,7 @@ function App() {
     setCommitments((current) => [
       ...current,
       {
-        id: crypto.randomUUID(),
+        id: `c-${crypto.randomUUID()}`,
         title: draftCommitment.title,
         date: draftCommitment.date,
         start: draftCommitment.start,
@@ -191,7 +129,29 @@ function App() {
   }
 
   const removeCommitment = (id: string) => {
-    setCommitments((current) => current.filter((commitment) => commitment.id !== id))
+    setCommitments((current) => current.filter((entry) => entry.id !== id))
+  }
+
+  const updateSessionStatus = (id: string, status: StudySession['status']) => {
+    setSessions((current) =>
+      current.map((session) =>
+        session.id === id ? { ...session, status } : session,
+      ),
+    )
+  }
+
+  const rescheduleUnfinished = () => {
+    const refreshed = rescheduleMissedSessions(sessions, assignment, commitments, now)
+    setSessions(refreshed)
+  }
+
+  const toggleStudyDay = (day: (typeof daysOfWeek)[number]) => {
+    setAssignment((current) => ({
+      ...current,
+      studyDays: current.studyDays.includes(day)
+        ? current.studyDays.filter((entry) => entry !== day)
+        : [...current.studyDays, day],
+    }))
   }
 
   return (
@@ -199,14 +159,15 @@ function App() {
       <header className="topbar">
         <div>
           <p className="eyebrow">Student on the Go</p>
-          <h1>Deadline-aware study planner</h1>
+          <h1>Study planner</h1>
         </div>
-        <div className="status-pill">Protected commitments stay fixed</div>
+        <div className="status-pill">Deadline-first planning</div>
       </header>
 
       <main className="planner-grid">
         <section className="panel">
-          <h2>Assignment</h2>
+          <h2>Assignment and timing</h2>
+
           <label>
             Assignment title
             <input
@@ -229,20 +190,94 @@ function App() {
           </label>
 
           <label>
-            Study session length (minutes)
+            Estimated total work (minutes)
             <input
               type="number"
               min={30}
+              step={15}
+              value={assignment.totalWorkMinutes}
+              onChange={(event) =>
+                setAssignment((current) => ({
+                  ...current,
+                  totalWorkMinutes: Number(event.target.value) || 0,
+                }))
+              }
+            />
+          </label>
+
+          <label>
+            Study session length (minutes)
+            <input
+              type="number"
+              min={15}
               step={15}
               value={assignment.sessionMinutes}
               onChange={(event) =>
                 setAssignment((current) => ({
                   ...current,
-                  sessionMinutes: Number(event.target.value) || 60,
+                  sessionMinutes: Number(event.target.value) || 45,
                 }))
               }
             />
           </label>
+
+          <label>
+            Buffer before deadline (minutes)
+            <input
+              type="number"
+              min={0}
+              step={15}
+              value={assignment.bufferMinutes}
+              onChange={(event) =>
+                setAssignment((current) => ({
+                  ...current,
+                  bufferMinutes: Number(event.target.value) || 0,
+                }))
+              }
+            />
+          </label>
+
+          <div className="study-days">
+            {daysOfWeek.map((day) => (
+              <button
+                key={day}
+                type="button"
+                className={assignment.studyDays.includes(day) ? 'day active' : 'day'}
+                onClick={() => toggleStudyDay(day)}
+              >
+                {day}
+              </button>
+            ))}
+          </div>
+
+          <div className="time-row">
+            <label>
+              Study starts
+              <input
+                type="time"
+                value={assignment.studyStart}
+                onChange={(event) =>
+                  setAssignment((current) => ({
+                    ...current,
+                    studyStart: event.target.value,
+                  }))
+                }
+              />
+            </label>
+            <label>
+              Study ends
+              <input
+                type="time"
+                value={assignment.studyEnd}
+                onChange={(event) =>
+                  setAssignment((current) => ({
+                    ...current,
+                    studyEnd: event.target.value,
+                  }))
+                }
+              />
+            </label>
+          </div>
         </section>
 
         <section className="panel">
@@ -312,10 +347,14 @@ function App() {
                 <div>
                   <strong>{commitment.title}</strong>
                   <p>
-                    {formatDateKey(commitment.date)} · {commitment.start}–{commitment.end}
+                    {formatDate(commitment.date)} · {commitment.start}–{commitment.end}
                   </p>
                 </div>
-                <button type="button" onClick={() => removeCommitment(commitment.id)}>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => removeCommitment(commitment.id)}
+                >
                   Remove
                 </button>
               </li>
@@ -325,34 +364,87 @@ function App() {
 
         <section className="panel">
           <h2>Study plan</h2>
-          <div className="plan-summary">
-            <span>Deadline: {formatDateKey(assignment.dueDate)}</span>
-            <span>Session length: {assignment.sessionMinutes} min</span>
+
+          <div className="summary-grid">
+            <div className="summary-card">
+              <span>Planned</span>
+              <strong>{formatMinutes(plan.plannedMinutes)}</strong>
+            </div>
+            <div className="summary-card">
+              <span>Completed</span>
+              <strong>{formatMinutes(completedMinutes)}</strong>
+            </div>
+            <div className="summary-card warning">
+              <span>Unscheduled</span>
+              <strong>{formatMinutes(unscheduledMinutes)}</strong>
+            </div>
           </div>
 
-          {sessions.length === 0 ? (
+          <div className="milestone-list">
+            {milestones.map((milestone, index) => (
+              <div key={milestone.name} className="milestone-card">
+                <span className="milestone-index">{index + 1}</span>
+                <div>
+                  <strong>{milestone.name}</strong>
+                  <p>{MILESTONE_ORDER[index]} · {formatMinutes(milestone.minutes)}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {unscheduledMinutes > 0 ? (
             <div className="warning-box">
-              No study slots fit before the deadline without overlapping a fixed commitment.
+              Not enough free time remains before the deadline. {formatMinutes(unscheduledMinutes)} cannot fit without moving a fixed commitment.
             </div>
           ) : (
-            <ul className="session-list">
-              {sessions.map((session) => (
+            <div className="ok-box">This plan fits within the deadline buffer and protected commitments.</div>
+          )}
+
+          <div className="session-actions">
+            <button type="button" onClick={rescheduleUnfinished}>
+              Reschedule unfinished work
+            </button>
+          </div>
+
+          <ul className="session-list">
+            {sessions.length === 0 ? (
+              <li className="empty-state">No study blocks fit right now.</li>
+            ) : (
+              sessions.map((session) => (
                 <li key={session.id} className="session-item">
-                  <div className="session-time">
-                    <strong>{new Date(session.start).toLocaleDateString(undefined, {
-                      month: 'short',
-                      day: 'numeric',
-                      weekday: 'short',
-                    })}</strong>
+                  <div className="session-meta">
+                    <strong>{session.milestone}</strong>
                     <span>
-                      {formatTime(new Date(session.start))}–{formatTime(new Date(session.end))}
+                      {formatDate(session.start.slice(0, 10))} • {formatTime(new Date(session.start))}–{formatTime(new Date(session.end))}
                     </span>
                   </div>
-                  <p>{session.title}</p>
+                  <div className="session-controls">
+                    <button
+                      type="button"
+                      className={session.status === 'completed' ? 'status active' : 'status'}
+                      onClick={() => updateSessionStatus(session.id, 'completed')}
+                    >
+                      Complete
+                    </button>
+                    <button
+                      type="button"
+                      className={session.status === 'missed' ? 'status active warn' : 'status warn'}
+                      onClick={() => updateSessionStatus(session.id, 'missed')}
+                    >
+                      Missed
+                    </button>
+                    <button
+                      type="button"
+                      className={session.status === 'planned' ? 'status active neutral' : 'status neutral'}
+                      onClick={() => updateSessionStatus(session.id, 'planned')}
+                    >
+                      Planned
+                    </button>
+                  </div>
                 </li>
-              ))}
-            </ul>
-          )}
+              ))
+            )}
+          </ul>
         </section>
       </main>
     </div>
