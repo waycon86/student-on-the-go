@@ -12,6 +12,28 @@ import './App.css'
 
 const daysOfWeek = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const
 
+type WorkInput = {
+  hours: number
+  minutes: number
+}
+
+const hoursAndMinutesFromTotal = (totalMinutes: number): WorkInput => {
+  const normalized = Math.max(0, totalMinutes)
+  return {
+    hours: Math.floor(normalized / 60),
+    minutes: normalized % 60,
+  }
+}
+
+const totalMinutesFromWorkInput = (input: WorkInput): number => {
+  const hours = Number.isFinite(input.hours) ? Math.max(0, Math.trunc(input.hours)) : 0
+  const minutes = Number.isFinite(input.minutes)
+    ? Math.max(0, Math.min(59, Math.trunc(input.minutes)))
+    : 0
+
+  return hours * 60 + minutes
+}
+
 const initialAssignment: AssignmentSettings = {
   title: 'Research Essay',
   dueDate: '2026-10-27',
@@ -63,8 +85,9 @@ function formatTime(date: Date): string {
 }
 
 function formatMinutes(value: number): string {
-  const hours = Math.floor(value / 60)
-  const minutes = value % 60
+  const normalized = Math.max(0, value)
+  const hours = Math.floor(normalized / 60)
+  const minutes = normalized % 60
   if (hours === 0) return `${minutes} min`
   if (minutes === 0) return `${hours} hr`
   return `${hours} hr ${minutes} min`
@@ -80,14 +103,34 @@ function App() {
     end: '15:00',
   })
   const [now] = useState(() => new Date())
+  const [isDark, setIsDark] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches,
+  )
+  const [workInput, setWorkInput] = useState<WorkInput>(() =>
+    hoursAndMinutesFromTotal(initialAssignment.totalWorkMinutes),
+  )
   const [sessions, setSessions] = useState<StudySession[]>(() =>
     buildStudyPlan(initialAssignment, initialCommitments, now).sessions,
   )
 
-  const plan = useMemo(
-    () => buildStudyPlan(assignment, commitments, now),
-    [assignment, commitments, now],
+  const totalWorkMinutes = useMemo(
+    () => totalMinutesFromWorkInput(workInput),
+    [workInput],
   )
+
+  const workTotalValid = totalWorkMinutes > 0
+
+  const plan = useMemo(
+    () => buildStudyPlan({ ...assignment, totalWorkMinutes }, commitments, now),
+    [assignment, commitments, now, totalWorkMinutes],
+  )
+
+  useEffect(() => {
+    setAssignment((current) => ({
+      ...current,
+      totalWorkMinutes,
+    }))
+  }, [totalWorkMinutes])
 
   useEffect(() => {
     setSessions(plan.sessions)
@@ -103,6 +146,25 @@ function App() {
     .reduce((total) => total + assignment.sessionMinutes, 0)
 
   const unscheduledMinutes = Math.max(plan.remainingWorkMinutes, 0)
+
+  const updateWorkField = (field: 'hours' | 'minutes', value: string) => {
+    const nextValue = Number(value)
+    const safeValue = Number.isFinite(nextValue) ? Math.max(0, Math.trunc(nextValue)) : 0
+
+    setWorkInput((current) => {
+      const nextInput = {
+        ...current,
+        [field]: field === 'minutes' ? Math.min(59, safeValue) : safeValue,
+      }
+
+      setAssignment((existing) => ({
+        ...existing,
+        totalWorkMinutes: totalMinutesFromWorkInput(nextInput),
+      }))
+
+      return nextInput
+    })
+  }
 
   const addCommitment = () => {
     if (!draftCommitment.title || !draftCommitment.date || !draftCommitment.start || !draftCommitment.end) {
@@ -155,13 +217,18 @@ function App() {
   }
 
   return (
-    <div className="app-shell">
+    <div className={isDark ? 'app-shell dark' : 'app-shell'}>
       <header className="topbar">
         <div>
           <p className="eyebrow">Student on the Go</p>
           <h1>Study planner</h1>
         </div>
-        <div className="status-pill">Deadline-first planning</div>
+        <div className="topbar-actions">
+          <button type="button" className="secondary-button" onClick={() => setIsDark((current) => !current)}>
+            {isDark ? 'Light mode' : 'Dark mode'}
+          </button>
+          <div className="status-pill">Deadline-first planning</div>
+        </div>
       </header>
 
       <main className="planner-grid">
@@ -189,21 +256,38 @@ function App() {
             />
           </label>
 
-          <label>
-            Estimated total work (minutes)
-            <input
-              type="number"
-              min={30}
-              step={15}
-              value={assignment.totalWorkMinutes}
-              onChange={(event) =>
-                setAssignment((current) => ({
-                  ...current,
-                  totalWorkMinutes: Number(event.target.value) || 0,
-                }))
-              }
-            />
-          </label>
+          <div className="work-input-group">
+            <span className="field-label">Estimated total work</span>
+            <div className="work-input-row">
+              <label>
+                Hours
+                <input
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={workInput.hours}
+                  onChange={(event) => updateWorkField('hours', event.target.value)}
+                />
+              </label>
+              <label>
+                Minutes
+                <input
+                  type="number"
+                  min={0}
+                  max={59}
+                  step={1}
+                  value={workInput.minutes}
+                  onChange={(event) => updateWorkField('minutes', event.target.value)}
+                />
+              </label>
+            </div>
+            <p className="field-hint">Hours: whole numbers, minimum 0. Minutes: whole numbers, 0–59.</p>
+            {!workTotalValid ? (
+              <div className="validation-message">
+                Enter a total work estimate greater than zero before planning.
+              </div>
+            ) : null}
+          </div>
 
           <label>
             Study session length (minutes)

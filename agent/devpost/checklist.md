@@ -14,9 +14,9 @@ Build mode: learn
   Why now: This is the kernel of the app: protected obligations, deadline-aware planning, and a built-in warning when the plan no longer fits. It proves the app can handle the most urgent scheduling risk early.
   PRD ref: `prd.md > The Core Journey`, `prd.md > Features and Behavior > Study Time and Session Length Configuration`, `prd.md > Features and Behavior > Fixed Commitment Protection`, `prd.md > Features and Behavior > Deadline-Driven Study Planning`, `prd.md > Features and Behavior > Missed-Session Recovery`
   Spec ref: `spec.md > Components`, `spec.md > Data Model`, `spec.md > How This Works, In Plain Language`, `spec.md > Important Failure Modes`
-  Build: Add assignment work estimates, study-day/time-window configuration, deadline-buffer planning, fixed commitment protection, milestone ordering, session status tracking, and unfinished-session rescheduling while keeping completed sessions and protected commitments intact.
-  Verify (mechanical): Run `npx tsx src/lib/scheduler.test.ts` and `npm run build` and confirm the scheduling tests pass and the app compiles.
-  Learner check: Open the app, set one assignment, add protected commitments, try different session lengths and buffer values, then confirm the planner keeps study sessions outside fixed blocks and warns when the plan no longer fits.
+  Build: Add assignment work estimates, study-day/time-window configuration, deadline-buffer planning, fixed commitment protection, milestone ordering, session status tracking, unfinished-session rescheduling, work-estimate validation, and dark mode while keeping completed sessions and protected commitments intact.
+  Verify (mechanical): Run `npx tsx src/lib/scheduler.test.ts`, `npx tsx src/lib/validation.test.ts`, and `npm run build` and confirm the scheduler rules, conversion logic, and app compile cleanly.
+  Learner check: Open the app, set one assignment with hours and minutes, add protected commitments, toggle dark mode, try different session lengths and buffer values, then confirm the planner keeps study sessions outside fixed blocks and warns when the plan no longer fits.
   Commit: `Build first assignment scheduling flow`
 
 ## Hands-on Checkpoints
