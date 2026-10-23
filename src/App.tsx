@@ -563,7 +563,7 @@ function PlannerPage(props: PlannerProps) {
 
         <div className="study-days">
           {daysOfWeek.map((day) => (
-            <button key={day} type="button" className={assignment.studyDays.includes(day) ? 'day active' : 'day'} onClick={() => toggleStudyDay(day)}>{day}</button>
+            <button key={day} type="button" aria-pressed={assignment.studyDays.includes(day)} className={assignment.studyDays.includes(day) ? 'day active' : 'day'} onClick={() => toggleStudyDay(day)}>{assignment.studyDays.includes(day) ? <span className="day-check" aria-hidden="true">✓</span> : null}{day}</button>
           ))}
         </div>
 
@@ -600,7 +600,7 @@ function AssignmentsPage(props: PlannerProps) {
 
         <div className="study-days">
           {daysOfWeek.map((day) => (
-            <button key={day} type="button" className={assignment.studyDays.includes(day) ? 'day active' : 'day'} onClick={() => toggleStudyDay(day)}>{day}</button>
+            <button key={day} type="button" aria-pressed={assignment.studyDays.includes(day)} className={assignment.studyDays.includes(day) ? 'day active' : 'day'} onClick={() => toggleStudyDay(day)}>{assignment.studyDays.includes(day) ? <span className="day-check" aria-hidden="true">✓</span> : null}{day}</button>
           ))}
         </div>
 
@@ -1818,6 +1818,7 @@ function AppContent() {
             : location.pathname === '/schedule' ? 'My Schedule'
               : location.pathname === '/campus-map' ? 'Campus Map'
                 : location.pathname === '/settings' ? 'Settings'
+                : location.pathname === '/more' ? 'More'
                 : formatTodayHeaderDate(new Date())
 
   const pageProps: PlannerProps = {
