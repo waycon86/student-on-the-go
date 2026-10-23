@@ -275,6 +275,10 @@ function formatMinutes(value: number): string {
   return `${hours} hr ${minutes} min`
 }
 
+function formatTodayHeaderDate(value: Date): string {
+  return value.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })
+}
+
 function buildCampusMapPath(campusId: string | null | undefined, buildingId: string | undefined, roomNumber?: string): string {
   const params = new URLSearchParams()
   if (campusId) params.set('campus', campusId)
@@ -341,12 +345,13 @@ function AssignmentLocationFields({
 }
 
 function TodayPage(props: PlannerProps) {
-  const { assignment, commitments, combinedPlan, sessions, confirmedAssignments } = props
+  const { assignment, commitments, combinedPlan, sessions, confirmedAssignments, updateSessionStatus } = props
   const upcomingAssignments = [...confirmedAssignments].sort(
     (a, b) => new Date(`${a.dueDate}T00:00:00`).getTime() - new Date(`${b.dueDate}T00:00:00`).getTime(),
   )
   const nextSession = sessions[0]
   const todayCommitments = commitments.filter((commitment) => commitment.date === new Date().toISOString().slice(0, 10))
+  const todayStudyBlocks = sessions.filter((session) => session.start.slice(0, 10) === new Date().toISOString().slice(0, 10))
 
   return (
     <main className="page-content mobile-page-content">
@@ -453,6 +458,31 @@ function TodayPage(props: PlannerProps) {
                   </li>
                 )
               })}
+            </ul>
+          )}
+        </div>
+
+        <div className="panel sub-panel mobile-surface">
+          <h3>Today’s study checklist</h3>
+          {todayStudyBlocks.length === 0 ? (
+            <div className="empty-state">No study blocks are scheduled for today.</div>
+          ) : (
+            <ul className="checkoff-list">
+              {todayStudyBlocks.map((session) => (
+                <li key={session.id} className={session.status === 'completed' ? 'checkoff-item done' : 'checkoff-item'}>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={session.status === 'completed'}
+                      onChange={(event) => updateSessionStatus(session.id, event.target.checked ? 'completed' : 'planned')}
+                    />
+                    <span>
+                      <strong>{formatSessionAssignmentTitle(session.assignmentId)}</strong>
+                      <small>{formatTime(new Date(session.start))}–{formatTime(new Date(session.end))}</small>
+                    </span>
+                  </label>
+                </li>
+              ))}
             </ul>
           )}
         </div>
@@ -1717,14 +1747,15 @@ function AppContent() {
 
   const location = useLocation()
   const pageTitle =
-    location.pathname === '/planner' ? 'Planner'
+    location.pathname === '/' ? formatTodayHeaderDate(new Date())
+      : location.pathname === '/planner' ? 'Planner'
       : location.pathname === '/assignments' ? 'Assignments'
         : location.pathname === '/syllabus' ? 'Syllabus'
           : location.pathname === '/calendar' ? 'Calendar'
             : location.pathname === '/schedule' ? 'My Schedule'
               : location.pathname === '/campus-map' ? 'Campus Map'
                 : location.pathname === '/settings' ? 'Settings'
-                : 'Today'
+                : formatTodayHeaderDate(new Date())
 
   const pageProps: PlannerProps = {
     assignment,
