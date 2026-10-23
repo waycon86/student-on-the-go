@@ -970,9 +970,33 @@ function MorePage(props: PlannerProps) {
 
 function CampusMapViewport({ center, zoom }: { center: [number, number]; zoom: number }) {
   const map = useMap()
+  const [latitude, longitude] = center
   useEffect(() => {
-    map.setView(center, zoom)
-  }, [map, center, zoom])
+    map.setView([latitude, longitude], zoom)
+  }, [map, latitude, longitude, zoom])
+  return null
+}
+
+function CampusMapInteraction({ touchInteractionEnabled }: { touchInteractionEnabled: boolean }) {
+  const map = useMap()
+
+  useEffect(() => {
+    const coarsePointer = window.matchMedia('(pointer: coarse)')
+    const updateInteraction = () => {
+      if (!coarsePointer.matches || touchInteractionEnabled) {
+        map.dragging.enable()
+        map.touchZoom.enable()
+      } else {
+        map.dragging.disable()
+        map.touchZoom.disable()
+      }
+    }
+
+    updateInteraction()
+    coarsePointer.addEventListener('change', updateInteraction)
+    return () => coarsePointer.removeEventListener('change', updateInteraction)
+  }, [map, touchInteractionEnabled])
+
   return null
 }
 
@@ -997,6 +1021,7 @@ function CampusMapPage({
   const [locationMessage, setLocationMessage] = useState('')
   const [geocodedCenter, setGeocodedCenter] = useState<[number, number] | null>(null)
   const [customDestination, setCustomDestination] = useState('')
+  const [touchInteractionEnabled, setTouchInteractionEnabled] = useState(false)
 
   const requestedBuildingId = searchParams.get('building') ?? ''
   const roomNumber = searchParams.get('room') ?? ''
@@ -1213,13 +1238,25 @@ function CampusMapPage({
         {locationMessage ? <p className="field-hint">{locationMessage}</p> : null}
         {selectedCampus.buildingCoverage === 'partial' ? <p className="field-hint">Building coverage is partial for this campus. Use the official campus map for complete listings.</p> : null}
 
-        <div className="campus-map-canvas">
-          <MapContainer center={mapCenter} zoom={selectedBuilding && hasValidCoordinates(selectedBuilding) ? 16 : 14} scrollWheelZoom attributionControl={true}>
+        <div className="campus-map-touch-controls">
+          <button
+            type="button"
+            className="secondary-button"
+            aria-pressed={touchInteractionEnabled}
+            onClick={() => setTouchInteractionEnabled((current) => !current)}
+          >
+            {touchInteractionEnabled ? 'Scroll page' : 'Move map'}
+          </button>
+          <p>{touchInteractionEnabled ? 'Drag to move the map. Tap Scroll page when finished.' : 'Swipe to scroll the page. Tap Move map to pan.'}</p>
+        </div>
+        <div className={`campus-map-canvas${touchInteractionEnabled ? ' map-interactive' : ''}`}>
+          <MapContainer center={mapCenter} zoom={selectedBuilding && hasValidCoordinates(selectedBuilding) ? 16 : 14} scrollWheelZoom={false} attributionControl={true}>
             <TileLayer
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
             <CampusMapViewport center={mapCenter} zoom={selectedBuilding && hasValidCoordinates(selectedBuilding) ? 16 : 14} />
+            <CampusMapInteraction touchInteractionEnabled={touchInteractionEnabled} />
 
             {filteredMappableBuildings.map((building) => {
               const isSelected = selectedBuilding?.id === building.id
@@ -1391,6 +1428,25 @@ function SettingsPage({
 }
 
 function AppContent() {
+  const appShellRef = useRef<HTMLDivElement>(null)
+  const mobileNavRef = useRef<HTMLElement>(null)
+
+  useEffect(() => {
+    const shell = appShellRef.current
+    const nav = mobileNavRef.current
+    if (!shell || !nav) return
+
+    const updateNavHeight = () => {
+      const height = nav.getBoundingClientRect().height
+      if (height > 0) shell.style.setProperty('--mobile-nav-height', `${Math.ceil(height)}px`)
+    }
+
+    updateNavHeight()
+    const observer = new ResizeObserver(updateNavHeight)
+    observer.observe(nav)
+    return () => observer.disconnect()
+  }, [])
+
   const [assignment, setAssignment] = useState<AssignmentSettings>(() => {
     const saved = readStoredJson<AssignmentSettings | null>(ASSIGNMENT_STORAGE_KEY, null)
     if (!saved) return initialAssignment
@@ -1816,7 +1872,7 @@ function AppContent() {
   }
 
   return (
-    <div className={isDark ? 'app-shell dark' : 'app-shell'} style={appStyle}>
+    <div ref={appShellRef} className={isDark ? 'app-shell dark' : 'app-shell'} style={appStyle}>
       <aside className="sidebar desktop-sidebar">
         <div className="brand-block"><p className="eyebrow">Student on the Go</p><h1>Your study planner</h1></div>
         <nav className="nav-menu" aria-label="Primary navigation">
@@ -1861,7 +1917,7 @@ function AppContent() {
         </Routes>
       </div>
 
-      <nav className="bottom-nav" aria-label="Mobile navigation">
+      <nav ref={mobileNavRef} className="bottom-nav" aria-label="Mobile navigation">
         {mobileNavItems.map((item) => (
           <NavLink key={item.to} to={item.to} className={({ isActive }) => `bottom-nav-link ${isActive ? 'active' : ''}`}>
             <span className="bottom-nav-icon" aria-hidden="true">{item.icon}</span>
