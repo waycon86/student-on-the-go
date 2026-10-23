@@ -1108,6 +1108,12 @@ function CampusMapPage({
     : ''
   const directionsLink = customDirectionsLink || selectedDirectionsLink
 
+  const openBuildingDirections = (buildingId: string) => {
+    updateMapParams({ buildingId })
+    const url = buildCampusDirectionsUrl(campusId, buildingId, roomNumber)
+    window.open(url, '_blank', 'noopener,noreferrer')
+  }
+
   const requestLocation = () => {
     if (!navigator.geolocation) {
       setLocationMessage('Location access is not available in this browser.')
@@ -1229,11 +1235,12 @@ function CampusMapPage({
                     fillOpacity: 0.8,
                     weight: isSelected ? 3 : 2,
                   }}
-                  eventHandlers={{ click: () => updateMapParams({ buildingId: building.id }) }}
+                  eventHandlers={{ click: () => openBuildingDirections(building.id) }}
                 >
                   <Popup>
                     <strong>{building.name}</strong>
                     <p>{toAddressLine(building)}</p>
+                    <a href={buildCampusDirectionsUrl(campusId, building.id, roomNumber)} target="_blank" rel="noreferrer">Open walking directions</a>
                   </Popup>
                 </CircleMarker>
               )
@@ -1253,7 +1260,7 @@ function CampusMapPage({
               const active = selectedBuilding?.id === building.id
               return (
                 <div key={building.id} className={active ? 'campus-directory-item active' : 'campus-directory-item'}>
-                  <button type="button" className="campus-directory-name" onClick={() => updateMapParams({ buildingId: building.id })}>{building.name}</button>
+                  <button type="button" className="campus-directory-name" onClick={() => openBuildingDirections(building.id)}>{building.name}</button>
                   <div className="campus-directory-meta"><span>{building.shortName}</span><span>{toAddressLine(building)}</span></div>
                 </div>
               )
