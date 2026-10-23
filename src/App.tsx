@@ -252,6 +252,10 @@ function totalMinutesFromWorkInput(input: WorkInput): number {
   return hours * 60 + minutes
 }
 
+function formatSessionAssignmentTitle(assignmentId: string): string {
+  return assignmentId.replace(/-\d{4}-\d{2}-\d{2}(?:T.*)?$/, '')
+}
+
 function formatDate(value: string): string {
   if (!value) return 'Missing date'
   return new Date(`${value}T12:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', weekday: 'short' })
@@ -345,8 +349,43 @@ function TodayPage(props: PlannerProps) {
 
   return (
     <main className="page-content mobile-page-content">
+      <section className="panel getting-started" aria-labelledby="getting-started-title">
+        <p className="eyebrow">New here? Start here</p>
+        <h2 id="getting-started-title">Find study time around your classes and work.</h2>
+        <p className="getting-started-description">
+          Student on the Go turns assignment deadlines into study blocks that fit your available time.
+        </p>
+        <div className="getting-started-actions">
+          <NavLink className="getting-started-primary" to="/assignments">Plan my assignment</NavLink>
+          <NavLink className="getting-started-secondary" to="/syllabus">Import a syllabus</NavLink>
+        </div>
+        <ol className="getting-started-steps" aria-label="How to use Student on the Go">
+          <li>
+            <NavLink to="/assignments">
+              <span className="getting-started-number" aria-hidden="true">1</span>
+              <span><strong>Add an assignment</strong><span className="getting-started-step-description">Enter a due date and estimate how long the work will take.</span></span>
+            </NavLink>
+          </li>
+          <li>
+            <NavLink to="/schedule">
+              <span className="getting-started-number" aria-hidden="true">2</span>
+              <span><strong>Add your busy times</strong><span className="getting-started-step-description">Add classes, work shifts, and other time you cannot study.</span></span>
+            </NavLink>
+          </li>
+          <li>
+            <NavLink to="/calendar">
+              <span className="getting-started-number" aria-hidden="true">3</span>
+              <span><strong>See your study plan</strong><span className="getting-started-step-description">Open the calendar to see when to study before your deadline.</span></span>
+            </NavLink>
+          </li>
+        </ol>
+        <p className="getting-started-note">
+          First visit? An example plan is included. Replace it with your own assignment and busy times.
+        </p>
+      </section>
+
       <section className="panel dashboard-panel mobile-section">
-        <p className="page-intro">Review the next block, today’s obligations, and what needs attention first.</p>
+        <p className="page-intro">Your next study session, upcoming deadlines, and busy times are below.</p>
 
         <div className="summary-grid compact-grid">
           <div className="summary-card">
@@ -358,7 +397,7 @@ function TodayPage(props: PlannerProps) {
             <strong>{formatDate(assignment.dueDate)}</strong>
           </div>
           <div className="summary-card warning">
-            <span>Protected commitments</span>
+            <span>Classes & busy times</span>
             <strong>{commitments.length}</strong>
           </div>
         </div>
@@ -368,7 +407,7 @@ function TodayPage(props: PlannerProps) {
             <h3>Next study block</h3>
             {nextSession ? (
               <div className="mini-list">
-                <strong>{nextSession.assignmentId}</strong>
+                <strong>{formatSessionAssignmentTitle(nextSession.assignmentId)}</strong>
                 <p>{formatDate(nextSession.start.slice(0, 10))} • {formatTime(new Date(nextSession.start))}–{formatTime(new Date(nextSession.end))}</p>
               </div>
             ) : (
@@ -397,7 +436,7 @@ function TodayPage(props: PlannerProps) {
         </div>
 
         <div className="panel sub-panel mobile-surface">
-          <h3>Today’s commitments</h3>
+          <h3>Today’s classes & busy times</h3>
           {todayCommitments.length === 0 ? (
             <div className="empty-state">No commitments are scheduled for today. You have a clear day.</div>
           ) : (
@@ -436,7 +475,7 @@ function TodayPage(props: PlannerProps) {
             <strong>{formatMinutes(props.completedMinutes)}</strong>
           </div>
           <div className="summary-card warning">
-            <span>Unscheduled</span>
+            <span>Time that won’t fit</span>
             <strong>{formatMinutes(props.unscheduledMinutes)}</strong>
           </div>
         </div>
@@ -461,7 +500,7 @@ function PlannerPage(props: PlannerProps) {
         <div className="summary-grid">
           <div className="summary-card"><span>Planned</span><strong>{formatMinutes(combinedPlan.plannedMinutes)}</strong></div>
           <div className="summary-card"><span>Completed</span><strong>{formatMinutes(props.completedMinutes)}</strong></div>
-          <div className="summary-card warning"><span>Unscheduled</span><strong>{formatMinutes(Math.max(combinedPlan.remainingWorkMinutes, unscheduledMinutes))}</strong></div>
+          <div className="summary-card warning"><span>Time that won’t fit</span><strong>{formatMinutes(Math.max(combinedPlan.remainingWorkMinutes, unscheduledMinutes))}</strong></div>
         </div>
 
         <div className="milestone-list">
@@ -475,7 +514,7 @@ function PlannerPage(props: PlannerProps) {
       </section>
 
       <section className="panel">
-        <div className="panel-header-row"><div><p className="eyebrow">Assignment settings</p><h2>Study inputs</h2></div></div>
+        <div className="panel-header-row"><div><p className="eyebrow">Assignment settings</p><h2>Plan your assignment</h2></div></div>
         <label>Assignment title<input value={assignment.title} onChange={(event) => setAssignment((current) => ({ ...current, title: event.target.value }))} /></label>
         <label>Due date<input type="date" value={assignment.dueDate} onChange={(event) => setAssignment((current) => ({ ...current, dueDate: event.target.value }))} /></label>
 
@@ -489,7 +528,7 @@ function PlannerPage(props: PlannerProps) {
         </div>
 
         <label>Study session length (minutes)<input type="number" min={15} step={15} value={assignment.sessionMinutes} onChange={(event) => setAssignment((current) => ({ ...current, sessionMinutes: Number(event.target.value) || 45 }))} /></label>
-        <label>Buffer before deadline (minutes)<input type="number" min={0} step={15} value={assignment.bufferMinutes} onChange={(event) => setAssignment((current) => ({ ...current, bufferMinutes: Number(event.target.value) || 0 }))} /></label>
+        <label>Finish this many minutes before the deadline<input type="number" min={0} step={15} value={assignment.bufferMinutes} onChange={(event) => setAssignment((current) => ({ ...current, bufferMinutes: Number(event.target.value) || 0 }))} /></label>
 
         <div className="study-days">
           {daysOfWeek.map((day) => (
@@ -515,6 +554,7 @@ function AssignmentsPage(props: PlannerProps) {
     <main className="page-content">
       <section className="panel">
         <div className="panel-header-row"><div><p className="eyebrow">Assignments</p><h2>Assignment details</h2></div></div>
+        <p className="workflow-help">Replace the example below with your assignment, due date, and work estimate. Choose the days and times you can study. Your study blocks update as you edit.</p>
         <label>Assignment title<input value={assignment.title} onChange={(event) => setAssignment((current) => ({ ...current, title: event.target.value }))} /></label>
         <label>Due date<input type="date" value={assignment.dueDate} onChange={(event) => setAssignment((current) => ({ ...current, dueDate: event.target.value }))} /></label>
 
@@ -539,13 +579,18 @@ function AssignmentsPage(props: PlannerProps) {
         </div>
 
         <AssignmentLocationFields assignment={assignment} setAssignment={setAssignment} selectedCampusId={props.selectedCampusId} />
+        <p className="workflow-help">Assignment changes are saved in this browser.</p>
+        <div className="getting-started-actions">
+          <NavLink className="getting-started-primary" to="/schedule">Next: add busy times</NavLink>
+          <NavLink className="getting-started-secondary" to="/calendar">View my study plan</NavLink>
+        </div>
       </section>
 
       <section className="panel">
-        <div className="panel-header-row"><div><p className="eyebrow">Fixed commitments</p><h2>Add a commitment</h2></div></div>
+        <div className="panel-header-row"><div><p className="eyebrow">Fixed commitments</p><h2>Add busy time</h2></div></div>
 
         <div className="commitment-form">
-          <label>Commitment name<input value={draftCommitment.title} onChange={(event) => setDraftCommitment((current) => ({ ...current, title: event.target.value }))} /></label>
+          <label>Class or busy time<input value={draftCommitment.title} onChange={(event) => setDraftCommitment((current) => ({ ...current, title: event.target.value }))} /></label>
           <label>Date<input type="date" value={draftCommitment.date} onChange={(event) => setDraftCommitment((current) => ({ ...current, date: event.target.value }))} /></label>
           <div className="time-row">
             <label>Start<input type="time" value={draftCommitment.start} onChange={(event) => setDraftCommitment((current) => ({ ...current, start: event.target.value }))} /></label>
@@ -566,7 +611,7 @@ function AssignmentsPage(props: PlannerProps) {
             </label>
             <label>Room number (optional)<input value={draftCommitment.roomNumber ?? ''} onChange={(event) => setDraftCommitment((current) => ({ ...current, roomNumber: event.target.value || undefined }))} placeholder="e.g. 101" /></label>
           </div>
-          <button type="button" onClick={addCommitment}>Add commitment</button>
+          <button type="button" onClick={addCommitment}>Add busy time</button>
         </div>
 
         <ul className="commitment-list">
@@ -618,6 +663,7 @@ function SyllabusPage(props: PlannerProps) {
           <div><p className="eyebrow">Syllabus</p><h2>3-step import</h2></div>
           <button type="button" className="primary-button mobile-primary-action" onClick={onImportAssignments} disabled={!hasValidAssignments}>Import</button>
         </div>
+        <p className="workflow-help">1. Paste your syllabus and select Read syllabus, or upload a file. 2. Review the assignment names, dates, and work estimates below. 3. Select Import to add them to your planner.</p>
 
         <div className="source-box">
           <label className="stacked-label">Paste syllabus text<textarea value={sylInput} rows={7} onChange={(event) => setSylInput(event.target.value)} /></label>
@@ -701,7 +747,7 @@ function CalendarPage({
 
     const studyItems = sessions.map((session) => ({
       id: session.id,
-      title: session.assignmentId,
+      title: formatSessionAssignmentTitle(session.assignmentId),
       date: session.start.slice(0, 10),
       kind: 'study' as const,
       start: session.start,
@@ -723,6 +769,7 @@ function CalendarPage({
     <main className="page-content calendar-page">
       <section className="panel calendar-panel">
         <div className="panel-header-row"><h2>Calendar</h2></div>
+        <p className="workflow-help">See your deadlines, busy times, and planned study sessions. Select an item to see its details. To change your plan, edit your assignment or busy times.</p>
         <ul className="calendar-detail-list">
           {items.length === 0 ? <li className="empty-state">No items scheduled yet.</li> : items.map((item) => (
             <li key={item.id} className={selectedItemId === item.id ? 'calendar-detail-item selected' : 'calendar-detail-item'}>
@@ -769,16 +816,17 @@ function MySchedulePage(props: PlannerProps) {
   return (
     <main className="page-content">
       <section className="panel">
-        <div className="panel-header-row"><div><p className="eyebrow">My Schedule</p><h2>Commitments and sessions</h2></div></div>
+        <div className="panel-header-row"><div><p className="eyebrow">My Schedule</p><h2>Classes & busy times</h2></div></div>
+        <p className="workflow-help">Add each class, work shift, or other busy time, then select Add busy time. Study sessions will fit around these times.</p>
 
         <div className="commitment-form">
-          <label>Commitment name<input value={draftCommitment.title} onChange={(event) => setDraftCommitment((current) => ({ ...current, title: event.target.value }))} /></label>
+          <label>Class or busy time<input value={draftCommitment.title} onChange={(event) => setDraftCommitment((current) => ({ ...current, title: event.target.value }))} /></label>
           <label>Date<input type="date" value={draftCommitment.date} onChange={(event) => setDraftCommitment((current) => ({ ...current, date: event.target.value }))} /></label>
           <div className="time-row">
             <label>Start<input type="time" value={draftCommitment.start} onChange={(event) => setDraftCommitment((current) => ({ ...current, start: event.target.value }))} /></label>
             <label>End<input type="time" value={draftCommitment.end} onChange={(event) => setDraftCommitment((current) => ({ ...current, end: event.target.value }))} /></label>
           </div>
-          <button type="button" onClick={addCommitment}>Add commitment</button>
+          <button type="button" onClick={addCommitment}>Add busy time</button>
         </div>
 
         <ul className="commitment-list">
@@ -799,6 +847,9 @@ function MySchedulePage(props: PlannerProps) {
             )
           })}
         </ul>
+        <div className="getting-started-actions">
+          <NavLink className="getting-started-primary" to="/calendar">Next: see my study plan</NavLink>
+        </div>
       </section>
 
       <section className="panel">
@@ -806,7 +857,7 @@ function MySchedulePage(props: PlannerProps) {
         <ul className="session-list">
           {sessions.length === 0 ? <li className="empty-state">No study blocks fit right now.</li> : sessions.map((session) => (
             <li key={session.id} className="session-item">
-              <div className="session-meta"><strong>{session.assignmentId}</strong><span>{formatDate(session.start.slice(0, 10))} • {formatTime(new Date(session.start))}–{formatTime(new Date(session.end))}</span></div>
+              <div className="session-meta"><strong>{formatSessionAssignmentTitle(session.assignmentId)}</strong><span>{formatDate(session.start.slice(0, 10))} • {formatTime(new Date(session.start))}–{formatTime(new Date(session.end))}</span></div>
               <div className="session-controls">
                 <button type="button" className={session.status === 'completed' ? 'status active' : 'status'} onClick={() => updateSessionStatus(session.id, 'completed')}>Complete</button>
                 <button type="button" className={session.status === 'missed' ? 'status active warn' : 'status warn'} onClick={() => updateSessionStatus(session.id, 'missed')}>Missed</button>
@@ -839,10 +890,10 @@ function MorePage(props: PlannerProps) {
         <div className="mobile-page-header"><div><p className="eyebrow">Schedule</p><h2>Commitments</h2></div><button type="button" className="secondary-button" onClick={rescheduleUnfinished}>Reschedule</button></div>
 
         <div className="commitment-form compact-form">
-          <label>Commitment name<input value={draftCommitment.title} onChange={(event) => setDraftCommitment((current) => ({ ...current, title: event.target.value }))} /></label>
+          <label>Class or busy time<input value={draftCommitment.title} onChange={(event) => setDraftCommitment((current) => ({ ...current, title: event.target.value }))} /></label>
           <label>Date<input type="date" value={draftCommitment.date} onChange={(event) => setDraftCommitment((current) => ({ ...current, date: event.target.value }))} /></label>
           <div className="time-row"><label>Start<input type="time" value={draftCommitment.start} onChange={(event) => setDraftCommitment((current) => ({ ...current, start: event.target.value }))} /></label><label>End<input type="time" value={draftCommitment.end} onChange={(event) => setDraftCommitment((current) => ({ ...current, end: event.target.value }))} /></label></div>
-          <button type="button" onClick={addCommitment}>Add commitment</button>
+          <button type="button" onClick={addCommitment}>Add busy time</button>
         </div>
 
         <ul className="commitment-list">
@@ -871,7 +922,7 @@ function MorePage(props: PlannerProps) {
           <ul className="session-list">
             {sessions.map((session) => (
               <li key={session.id} className="session-item">
-                <div className="session-meta"><strong>{session.assignmentId}</strong><span>{formatDate(session.start.slice(0, 10))} • {formatTime(new Date(session.start))}–{formatTime(new Date(session.end))}</span></div>
+                <div className="session-meta"><strong>{formatSessionAssignmentTitle(session.assignmentId)}</strong><span>{formatDate(session.start.slice(0, 10))} • {formatTime(new Date(session.start))}–{formatTime(new Date(session.end))}</span></div>
                 <div className="session-controls">
                   <button type="button" className={session.status === 'completed' ? 'status active' : 'status'} onClick={() => updateSessionStatus(session.id, 'completed')}>Complete</button>
                   <button type="button" className={session.status === 'missed' ? 'status active warn' : 'status warn'} onClick={() => updateSessionStatus(session.id, 'missed')}>Missed</button>
@@ -1628,7 +1679,7 @@ function AppContent() {
   return (
     <div className={isDark ? 'app-shell dark' : 'app-shell'} style={appStyle}>
       <aside className="sidebar desktop-sidebar">
-        <div className="brand-block"><p className="eyebrow">Student on the Go</p><h1>Plan, study, repeat</h1></div>
+        <div className="brand-block"><p className="eyebrow">Student on the Go</p><h1>Your study planner</h1></div>
         <nav className="nav-menu" aria-label="Primary navigation">
           {navItems.map((item) => (
             <NavLink key={item.to} to={item.to} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>{item.label}</NavLink>

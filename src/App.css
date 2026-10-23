@@ -1411,3 +1411,156 @@ button {
     margin-bottom: calc(10px + env(safe-area-inset-bottom));
   }
 }
+
+/* Plain-language introduction and a visible path into the planning workflow. */
+.workflow-help {
+  color: var(--muted);
+  line-height: 1.65;
+  margin: 12px 0 18px;
+}
+
+.getting-started {
+  grid-column: 1 / -1;
+  border-inline-start: 4px solid var(--theme-primary, #18453b);
+}
+
+.getting-started h2 {
+  max-width: 32ch;
+  font-size: clamp(1.5rem, 2.8vw, 2.15rem);
+  line-height: 1.2;
+  text-wrap: balance;
+}
+
+.getting-started-description {
+  max-width: 65ch;
+  margin: 12px 0 0;
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.getting-started-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 20px 0;
+}
+
+.getting-started-primary,
+.getting-started-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  padding: 10px 18px;
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  box-sizing: border-box;
+  font-weight: 700;
+  line-height: 1.5;
+  text-align: center;
+  text-decoration: none;
+}
+
+.getting-started-primary {
+  background: var(--theme-primary, #18453b);
+  border-color: var(--theme-primary, #18453b);
+  color: var(--theme-primary-text, #ffffff);
+}
+
+.getting-started-secondary {
+  background: var(--panel-muted);
+  color: var(--text);
+}
+
+.getting-started-primary:hover,
+.getting-started-secondary:hover {
+  filter: brightness(1.08);
+}
+
+.getting-started a:focus-visible {
+  outline: 3px solid var(--theme-accent-strong, #a89149);
+  outline-offset: 3px;
+}
+
+.getting-started-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.getting-started-steps li {
+  min-width: 0;
+}
+
+.getting-started-steps a {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  height: 100%;
+  padding: 16px;
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  box-sizing: border-box;
+  background: var(--panel-muted);
+  color: var(--text);
+  text-decoration: none;
+  line-height: 1.5;
+}
+
+.getting-started-steps a:hover {
+  border-color: var(--theme-primary, #18453b);
+}
+
+.getting-started-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--primary-soft);
+  color: var(--text);
+  font-weight: 800;
+}
+
+.getting-started-steps strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.getting-started-step-description {
+  display: block;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.getting-started-note {
+  margin: 16px 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+@media (max-width: 900px) {
+  .getting-started-steps {
+    grid-template-columns: 1fr;
+  }
+
+  .getting-started-steps a {
+    padding: 12px;
+  }
+}
+
+@media (max-width: 560px) {
+  .getting-started-actions {
+    flex-direction: column;
+  }
+
+  .getting-started-primary,
+  .getting-started-secondary {
+    width: 100%;
+  }
+}
