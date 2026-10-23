@@ -1179,6 +1179,25 @@ button {
   margin-bottom: 12px;
 }
 
+.campus-toolbar > .secondary-button {
+  align-self: stretch;
+}
+
+.campus-status-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--panel-border);
+  background: var(--panel-muted);
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .campus-search,
 .campus-start-picker,
 .campus-room-box {
