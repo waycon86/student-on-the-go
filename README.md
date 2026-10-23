@@ -1,75 +1,129 @@
-# React + TypeScript + Vite
+# Student on the Go
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Student on the Go is a deadline-first planner for students balancing classes, jobs, clubs, and assignment load.
 
-Currently, two official plugins are available:
+It serves students who need to turn syllabus deadlines into realistic study sessions that respect non-negotiable commitments. Instead of only tracking tasks, Student on the Go builds a schedule backward from due dates, keeps protected time blocks fixed, and warns when there is not enough time to finish.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## What Problem This Solves
 
-## React Compiler
+Students often know what is due but still miss deadlines because they cannot quickly answer:
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- How much time is actually left before this assignment is due?
+- Where can study sessions fit around classes, shifts, and meetings?
+- What happens when a planned study block is missed?
 
-## Expanding the ESLint configuration
+Student on the Go addresses this with conflict-aware scheduling, milestone planning, and rescheduling support.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## Implemented Features
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+Current implementation in this repository includes:
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+- Deadline-aware study planning with configurable study days, time windows, session length, and deadline buffer
+- Protected commitments (class, work, club, and other fixed events) that block overlapping study sessions
+- Session status tracking (planned, completed, missed) and unfinished-session rescheduling
+- Milestone generation for assignment phases (research, outline, draft, revision, finalize)
+- Syllabus intake via pasted text, .txt upload, and PDF upload with review/confirmation before scheduling
+- Duplicate prevention and editable extracted assignments before import
+- Multi-assignment planning support
+- Calendar and schedule views with assignment/commitment details
+- School-specific color themes for 25 university presets
+- Settings-driven college/campus/appearance selection with persistence
+- Campus map support:
+  - Interactive in-app map on Campus Map page (Leaflet)
+  - Building search and marker selection where verified building coordinates exist
+  - My classes filter for campus buildings tied to saved assignments/commitments
+  - Official campus map links per campus
+  - Google Maps walking directions handoff
+  - Partial coverage handling for campuses without full verified building datasets
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Requirements
 
+- Node.js 20+ (recommended: latest stable Node 24)
+- npm 10+
+
+## Setup and Commands
+
+Install dependencies:
+
+```bash
+npm install
 ```
 
-You can also install [eslint-plugin-react-x](https://npmx.dev/package/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://npmx.dev/package/eslint-plugin-react-dom) for React-specific lint rules:
+Start local development server:
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
+```bash
+npm run dev
 ```
+
+Production build:
+
+```bash
+npm run build
+```
+
+Preview production build locally:
+
+```bash
+npm run preview
+```
+
+## Short Judging Walkthrough (Future-Dated)
+
+Use these example dates so the flow remains demo-friendly:
+
+1. Open the app and go to Settings.
+2. Set Your college to Michigan State and Your campus to East Lansing Campus.
+3. Keep light or dark mode as preferred.
+4. Go to Assignments and create an assignment:
+   - Title: Research Essay
+   - Due date: 2027-03-18
+   - Work estimate: 8 hours 0 minutes
+   - Session length: 60 minutes
+   - Buffer: 120 minutes
+5. Add fixed commitments on 2027-03-12 through 2027-03-17 (class/work/club windows).
+6. Verify generated study sessions avoid commitment overlaps.
+7. Mark one session missed, then trigger reschedule and confirm fixed commitments remain protected.
+8. Open Syllabus, upload or paste sample assignment lines with dates, review extracted items, and import confirmed entries.
+9. Open Campus Map, search a building (MSU has verified markers), select one, and use Open walking directions.
+10. Use Find my class from an assignment or schedule item and confirm Campus Map opens with the related campus/building context.
+
+## Storage Behavior
+
+Current persistence is browser-local (localStorage), including:
+
+- current assignment inputs
+- confirmed assignment list
+- commitments
+- selected college/theme
+- selected campus
+- light/dark preference
+
+## Known Limitations
+
+- No account login or cross-device cloud sync in current implementation
+- Campus building coverage is partial outside MSU in the current data set
+- Walking directions open external Google Maps; indoor routing is not provided
+- Campus map route lines are not rendered inside Student on the Go without a verified routing backend
+
+## Devpost Planning Artifacts
+
+- Scope: [agent/devpost/scope.md](agent/devpost/scope.md)
+- PRD: [agent/devpost/prd.md](agent/devpost/prd.md)
+- Spec: [agent/devpost/spec.md](agent/devpost/spec.md)
+- Build checklist: [agent/devpost/checklist.md](agent/devpost/checklist.md)
+
+## Build With AI: Basics Notes
+
+This submission was built using the Devpost Build With AI: Basics workflow and Learn Skill Pack planning structure (scope -> PRD -> spec -> checklist), plus iterative AI coding assistance.
+
+Project foundation and assets used:
+
+- Starter scaffold: React + TypeScript + Vite template
+- Core libraries: React, React Router, Leaflet, React Leaflet, pdfjs-dist
+- Tooling: TypeScript, ESLint, tsx, Vite
+- Visual asset(s): local images under public/images used in app UI
+
+## License and Author
+
+- License: MIT
+- Author: Conway M Benson

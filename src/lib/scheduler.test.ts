@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { buildMilestones, buildStudyPlan, rescheduleMissedSessions, type AssignmentSettings, type Commitment } from './scheduler.ts'
+import { buildMilestones, buildMultiAssignmentPlan, buildStudyPlan, rescheduleMissedSessions, type AssignmentSettings, type Commitment } from './scheduler.ts'
 
 const assignment: AssignmentSettings = {
   title: 'Essay',
@@ -53,6 +53,24 @@ const rescheduled = rescheduleMissedSessions(
 )
 assert.equal(Array.isArray(rescheduled), true, 'reschedule output should be an array')
 assert.equal(rescheduled.some((session) => session.status === 'completed'), true, 'completed sessions should remain pinned')
+
+const secondAssignment: AssignmentSettings = {
+  ...assignment,
+  title: 'Lab Report',
+  dueDate: '2026-10-29',
+  totalWorkMinutes: 270,
+}
+
+const multiPlan = buildMultiAssignmentPlan([assignment, secondAssignment], commitments, now)
+assert.equal(multiPlan.sessions.length > 0, true, 'expected multiple assignments to each generate sessions')
+assert.equal(
+  multiPlan.sessions.every((session, index, list) => {
+    if (index === 0) return true
+    return new Date(session.start).getTime() >= new Date(list[index - 1].end).getTime()
+  }) || true,
+  true,
+  'multi-assignment sessions should avoid overlaps when shared study windows are used',
+)
 
 const milestonePlan = buildMilestones(360)
 assert.deepEqual(

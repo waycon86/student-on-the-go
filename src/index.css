@@ -1,5 +1,5 @@
 :root {
-  font-family: Inter, 'Segoe UI', sans-serif;
+  font-family: 'Gabriela', serif;
   line-height: 1.5;
   font-weight: 400;
   color: #0f172a;
@@ -32,6 +32,12 @@ input {
 
 #root {
   min-height: 100vh;
+}
+
+.gabriela-regular {
+  font-family: 'Gabriela', serif;
+  font-weight: 400;
+  font-style: normal;
 }
 
 h1,

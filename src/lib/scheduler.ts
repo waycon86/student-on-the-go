@@ -7,6 +7,10 @@ export type Commitment = {
   date: string
   start: string
   end: string
+  campusId?: string
+  campusBuildingId?: string
+  customLocationQuery?: string
+  roomNumber?: string
 }
 
 export type StudySession = {
@@ -27,6 +31,10 @@ export type AssignmentSettings = {
   studyDays: DayName[]
   studyStart: string
   studyEnd: string
+  campusId?: string
+  campusBuildingId?: string
+  customLocationQuery?: string
+  roomNumber?: string
 }
 
 export const MILESTONE_ORDER = ['Research', 'Outline', 'Draft', 'Revise'] as const
@@ -77,6 +85,7 @@ function getOpenIntervals(
   studyStart: string,
   studyEnd: string,
   commitments: Commitment[],
+  blockedIntervals: Array<{ start: Date; end: Date }> = [],
 ): Array<{ start: Date; end: Date }> {
   const intervals: Array<{ start: Date; end: Date }> = [
     { start: toDateTime(date, studyStart), end: toDateTime(date, studyEnd) },
@@ -84,19 +93,21 @@ function getOpenIntervals(
 
   const dayKey = date.toISOString().slice(0, 10)
   const dayCommitments = commitments.filter((entry) => entry.date === dayKey)
+  const allBlocked = [...dayCommitments.map((entry) => ({
+    start: toDateTime(date, entry.start),
+    end: toDateTime(date, entry.end),
+  })), ...blockedIntervals]
 
-  for (const commitment of dayCommitments) {
-    const cStart = toDateTime(date, commitment.start)
-    const cEnd = toDateTime(date, commitment.end)
+  for (const blocked of allBlocked) {
     const nextIntervals: Array<{ start: Date; end: Date }> = []
 
     for (const interval of intervals) {
-      if (overlaps(interval.start, interval.end, cStart, cEnd)) {
-        if (interval.start < cStart) {
-          nextIntervals.push({ start: interval.start, end: cStart })
+      if (overlaps(interval.start, interval.end, blocked.start, blocked.end)) {
+        if (interval.start < blocked.start) {
+          nextIntervals.push({ start: interval.start, end: blocked.start })
         }
-        if (cEnd < interval.end) {
-          nextIntervals.push({ start: cEnd, end: interval.end })
+        if (blocked.end < interval.end) {
+          nextIntervals.push({ start: blocked.end, end: interval.end })
         }
       } else {
         nextIntervals.push(interval)
@@ -113,6 +124,7 @@ export function buildStudyPlan(
   assignment: AssignmentSettings,
   commitments: Commitment[],
   now: Date = new Date(),
+  blockedIntervals: Array<{ start: Date; end: Date }> = [],
 ): { sessions: StudySession[]; remainingWorkMinutes: number; plannedMinutes: number; totalCapacityMinutes: number } {
   const dueDate = new Date(`${assignment.dueDate}T23:59:59`)
   const safeDeadline = new Date(dueDate)
@@ -135,7 +147,16 @@ export function buildStudyPlan(
       continue
     }
 
-    const openIntervals = getOpenIntervals(candidateDate, assignment.studyStart, assignment.studyEnd, commitments)
+    const openIntervals = getOpenIntervals(
+      candidateDate,
+      assignment.studyStart,
+      assignment.studyEnd,
+      commitments,
+      blockedIntervals.filter((interval) => {
+        const sameDay = interval.start.toISOString().slice(0, 10) === dayKey
+        return sameDay
+      }),
+    )
 
     const sortedIntervals = [...openIntervals].sort(
       (a, b) => new Date(b.end).getTime() - new Date(a.end).getTime(),
@@ -161,11 +182,11 @@ export function buildStudyPlan(
         }
 
         const sessionEnd = new Date(cursor)
-        const sessionId = `${dayKey}-${sessionStart.getTime()}`
+        const sessionId = `${assignment.title}-${dayKey}-${sessionStart.getTime()}`
 
         sessions.push({
           id: sessionId,
-          assignmentId: assignment.title,
+          assignmentId: `${assignment.title}-${dayKey}`,
           milestone: MILESTONE_ORDER[(sessions.length + 1) % MILESTONE_ORDER.length],
           start: sessionStart.toISOString(),
           end: sessionEnd.toISOString(),
@@ -192,6 +213,45 @@ export function buildStudyPlan(
     remainingWorkMinutes: Math.max(remainingWorkMinutes, 0),
     plannedMinutes: Math.max(assignment.totalWorkMinutes - remainingWorkMinutes, 0),
     totalCapacityMinutes,
+  }
+}
+
+export function buildMultiAssignmentPlan(
+  assignments: AssignmentSettings[],
+  commitments: Commitment[],
+  now: Date = new Date(),
+): { sessions: StudySession[]; plannedMinutes: number; remainingWorkMinutes: number } {
+  const plannedSessions: StudySession[] = []
+  let plannedMinutes = 0
+  let remainingMinutes = 0
+
+  const sortedAssignments = [...assignments].sort((a, b) => {
+    return new Date(`${a.dueDate}T00:00:00`).getTime() - new Date(`${b.dueDate}T00:00:00`).getTime()
+  })
+
+  for (const assignment of sortedAssignments) {
+    const blockedIntervals = plannedSessions.map((session) => ({
+      start: new Date(session.start),
+      end: new Date(session.end),
+    }))
+
+    const plan = buildStudyPlan(assignment, commitments, now, blockedIntervals)
+    const assignmentSessions = plan.sessions.map((session) => ({
+      ...session,
+      assignmentId: `${assignment.title}-${session.start}`,
+    }))
+
+    plannedSessions.push(...assignmentSessions)
+    plannedMinutes += plan.plannedMinutes
+    remainingMinutes += plan.remainingWorkMinutes
+  }
+
+  return {
+    sessions: plannedSessions.sort(
+      (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime(),
+    ),
+    plannedMinutes,
+    remainingWorkMinutes: remainingMinutes,
   }
 }
 
