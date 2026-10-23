@@ -40,6 +40,7 @@
   background: var(--bg);
   color: var(--text);
   min-height: 100vh;
+  color-scheme: light;
   display: flex;
   gap: 24px;
   padding: 20px;
@@ -47,6 +48,7 @@
 }
 
 .app-shell.dark {
+  color-scheme: dark;
   --bg: var(--page-bg, #0b1220);
   --bg-elevated: rgba(17, 24, 39, 0.92);
   --panel: var(--panel-bg, #111827);
@@ -146,6 +148,7 @@
 }
 
 .panel {
+  min-width: 0;
   background: var(--panel);
   border: 1px solid var(--panel-border);
   border-radius: 18px;
@@ -244,6 +247,7 @@
 label {
   display: block;
   width: 100%;
+  min-width: 0;
   margin-bottom: 14px;
   font-size: 0.9rem;
   font-weight: 600;
@@ -254,6 +258,8 @@ input,
 textarea,
 select {
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
   margin-top: 8px;
   padding: 10px 12px;
   border: 1px solid var(--field-border);
@@ -263,6 +269,29 @@ select {
   font: inherit;
   box-sizing: border-box;
   transition: border-color 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
+}
+
+/* Keep Safari's native date/time controls inside their label and grid track. */
+input[type='date'],
+input[type='time'] {
+  display: block;
+  -webkit-appearance: none;
+  appearance: none;
+  min-inline-size: 0;
+  inline-size: 100%;
+  max-inline-size: 100%;
+  min-height: 46px;
+  text-align: left;
+}
+
+input::-webkit-date-and-time-value {
+  min-height: 1.5em;
+  text-align: left;
+}
+
+input::-webkit-datetime-edit {
+  padding: 0;
+  min-width: 0;
 }
 
 input:focus,
@@ -326,10 +355,20 @@ button:disabled {
   color: var(--text);
 }
 
-.day.active {
-  background: var(--primary-soft);
+.day:hover:not(:disabled) {
+  background: var(--panel-muted);
+  color: var(--text);
+}
+
+.day.active,
+.day.active:hover:not(:disabled) {
+  background: var(--primary-strong);
   border-color: color-mix(in srgb, var(--primary) 40%, var(--panel-border));
-  color: var(--primary-strong);
+  color: var(--button-primary-text);
+}
+
+.day-check {
+  margin-inline-end: 5px;
 }
 
 .time-row,
@@ -537,6 +576,64 @@ button:disabled {
   display: flex;
 }
 
+.mobile-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.mobile-actions-stack {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.mobile-link-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  background: var(--panel-muted);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.mobile-link-card > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.mobile-link-card strong,
+.mobile-link-card small {
+  display: block;
+}
+
+.mobile-link-card small {
+  margin-top: 4px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.mobile-link-card .nav-icon {
+  flex: 0 0 32px;
+  font-size: 1.4rem;
+}
+
+.mobile-link-card:hover {
+  background: var(--primary-soft);
+}
+
+.mobile-link-card:focus-visible {
+  outline: 3px solid var(--theme-accent-strong);
+  outline-offset: 3px;
+}
+
 @media (max-width: 900px) {
   .app-shell {
     display: block;
@@ -567,7 +664,6 @@ button:disabled {
   .summary-grid,
   .time-row,
   .work-input-row,
-  .study-days,
   .stepper,
   .calendar-week-grid,
   .compact-fields,
@@ -602,14 +698,24 @@ button:disabled {
   }
 
   .topbar h2 {
-    font-size: clamp(1.8rem, 8vw, 2.5rem);
-    line-height: 1;
-    white-space: nowrap;
+    font-size: clamp(1.5rem, 6vw, 2.5rem);
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+  }
+
+  .study-days {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .day {
+    min-width: 0;
+    padding-inline: 6px;
   }
 
   .mobile-theme-toggle {
     display: inline-flex;
     margin-left: auto;
+    flex: 0 0 auto;
   }
 
   .mobile-page-header {
@@ -818,7 +924,6 @@ button:disabled {
   .compact-grid,
   .time-row,
   .work-input-row,
-  .study-days,
   .theme-selector-wrap,
   .mobile-actions-stack {
     grid-template-columns: 1fr;
