@@ -1379,6 +1379,67 @@ button {
   flex: 1 1 260px;
 }
 
+.campus-search small {
+  font-weight: 400;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.campus-empty-state {
+  padding: 16px;
+  margin: 12px 0;
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  background: var(--panel-muted);
+  color: var(--text);
+}
+
+.campus-empty-state h3 {
+  font-size: 1rem;
+}
+
+.campus-empty-state p {
+  margin: 10px 0 14px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.campus-map-main > .panel-header-row {
+  flex-wrap: wrap;
+}
+
+.primary-link-button,
+.official-campus-link,
+.campus-official-link {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 44px;
+  max-width: 100%;
+  padding: 10px 14px;
+  border-radius: 10px;
+  text-align: center;
+  text-decoration: none;
+}
+
+.official-campus-link {
+  background: var(--button-secondary-bg);
+  color: var(--button-secondary-text);
+  border: 1px solid var(--field-border);
+}
+
+.official-campus-link:hover,
+.campus-official-link:hover {
+  background: var(--panel-muted);
+}
+
+.official-campus-link:focus-visible,
+.campus-official-link:focus-visible,
+.primary-link-button:focus-visible {
+  outline: 3px solid var(--theme-accent-strong);
+  outline-offset: 3px;
+}
+
 .active-filter {
   border-color: color-mix(in srgb, var(--primary) 50%, var(--panel-border));
   background: var(--primary-soft);

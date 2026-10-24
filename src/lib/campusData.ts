@@ -164,6 +164,101 @@ export const MSU_CAMPUS: CampusConfig = {
   ],
 }
 
+// Source: Ohio State FITS Campusmap_Buildings_POI, building IDs and Latitude/Longitude fields.
+// Snapshot checked 2026-10-23. These building locations are not verified entrances.
+const OHIO_STATE_BUILDINGS: CampusBuilding[] = [
+  {
+    "id": "osu-0050",
+    "name": "Thompson Library",
+    "shortName": "LI",
+    "description": "A Columbus campus location listed by Ohio State Facilities Information and Technology Services.",
+    "destination": "Thompson Library, The Ohio State University, Columbus, Ohio",
+    "address": "1858 Neil Ave Mall, Columbus, OH 43210-1286",
+    "latitude": 39.99925188,
+    "longitude": -83.01488152
+  },
+  {
+    "id": "osu-0161",
+    "name": "Ohio Union",
+    "shortName": "OU",
+    "description": "A Columbus campus location listed by Ohio State Facilities Information and Technology Services.",
+    "destination": "Ohio Union, The Ohio State University, Columbus, Ohio",
+    "address": "1739 N High St, Columbus, OH 43210",
+    "latitude": 39.99765973,
+    "longitude": -83.00864174
+  },
+  {
+    "id": "osu-0339",
+    "name": "University Hall",
+    "shortName": "UH",
+    "description": "A Columbus campus location listed by Ohio State Facilities Information and Technology Services.",
+    "destination": "University Hall, The Ohio State University, Columbus, Ohio",
+    "address": "230 N Oval Mall, Columbus, OH 43210-1335",
+    "latitude": 40.00052277,
+    "longitude": -83.01443196
+  },
+  {
+    "id": "osu-0279",
+    "name": "Dreese Laboratories",
+    "shortName": "DL",
+    "description": "A Columbus campus location listed by Ohio State Facilities Information and Technology Services.",
+    "destination": "Dreese Laboratories, The Ohio State University, Columbus, Ohio",
+    "address": "2015 Neil Ave, Columbus, OH 43210-1210",
+    "latitude": 40.00222129,
+    "longitude": -83.01599036
+  },
+  {
+    "id": "osu-0037",
+    "name": "Hagerty Hall",
+    "shortName": "HH",
+    "description": "A Columbus campus location listed by Ohio State Facilities Information and Technology Services.",
+    "destination": "Hagerty Hall, The Ohio State University, Columbus, Ohio",
+    "address": "1775 College Rd, Columbus, OH 43210-1340",
+    "latitude": 39.99860531,
+    "longitude": -83.01030783
+  },
+  {
+    "id": "osu-0017",
+    "name": "Knowlton Hall",
+    "shortName": "KN",
+    "description": "A Columbus campus location listed by Ohio State Facilities Information and Technology Services.",
+    "destination": "Knowlton Hall, The Ohio State University, Columbus, Ohio",
+    "address": "275 W Woodruff Ave, Columbus, OH 43210-1138",
+    "latitude": 40.00359907,
+    "longitude": -83.01678866
+  },
+  {
+    "id": "osu-0030",
+    "name": "Denney Hall",
+    "shortName": "DE",
+    "description": "A Columbus campus location listed by Ohio State Facilities Information and Technology Services.",
+    "destination": "Denney Hall, The Ohio State University, Columbus, Ohio",
+    "address": "164 Annie & John Glenn Ave, Columbus, OH 43210-1326",
+    "latitude": 40.00130993,
+    "longitude": -83.01252836
+  },
+  {
+    "id": "osu-0274",
+    "name": "Hitchcock Hall",
+    "shortName": "HI",
+    "description": "A Columbus campus location listed by Ohio State Facilities Information and Technology Services.",
+    "destination": "Hitchcock Hall, The Ohio State University, Columbus, Ohio",
+    "address": "2070 Neil Ave, Columbus, OH 43210-1226",
+    "latitude": 40.00357404,
+    "longitude": -83.01528456
+  },
+  {
+    "id": "osu-0246",
+    "name": "Recreation and Physical Activity Center",
+    "shortName": "RP",
+    "description": "A Columbus campus location listed by Ohio State Facilities Information and Technology Services.",
+    "destination": "Recreation and Physical Activity Center, The Ohio State University, Columbus, Ohio",
+    "address": "337 Annie & John Glenn Ave, Columbus, OH 43210-1224",
+    "latitude": 39.9995101,
+    "longitude": -83.0183801
+  }
+]
+
 const EMPTY_BUILDINGS: CampusBuilding[] = []
 
 export const CAMPUS_CONFIGS: CampusConfig[] = [
@@ -199,7 +294,10 @@ export const CAMPUS_CONFIGS: CampusConfig[] = [
     officialMapUrl: 'https://maps.osu.edu/',
     fallbackDestination: 'The Ohio State University, Columbus, Ohio',
     buildingCoverage: 'partial',
-    buildings: EMPTY_BUILDINGS,
+    centerLatitude: 40.0005,
+    centerLongitude: -83.0144,
+    dataSource: 'Ohio State University FITS public building GIS; selected active Columbus buildings, checked 2026-10-23',
+    buildings: OHIO_STATE_BUILDINGS,
   },
   {
     id: 'penn-state-university-park',

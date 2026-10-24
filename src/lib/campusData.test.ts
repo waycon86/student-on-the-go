@@ -40,4 +40,22 @@ assert.equal(
   'unknown buildings should fall back to campus-level destination',
 )
 
+const ohioState = getCampusById('ohio-state-columbus')
+const thompson = ohioState.buildings.find((building) => building.id === 'osu-0050')
+assert.ok(thompson, 'Ohio State should include its official Thompson Library location')
+const ohioDestination = new URL(buildCampusDirectionsUrl(ohioState.id, thompson.id)).searchParams.get('destination')!
+const [ohioLatitude, ohioLongitude] = ohioDestination.split(',').map(Number)
+assert.ok(ohioLatitude > 39.97 && ohioLatitude < 40.04 && ohioLongitude > -83.06 && ohioLongitude < -82.98, 'Ohio State building directions must stay in Columbus')
+assert.equal(
+  new URL(buildCampusDirectionsUrl(ohioState.id, 'bessey-hall')).searchParams.get('destination'),
+  ohioState.fallbackDestination,
+  'a building ID from MSU must not resolve to an MSU destination while Ohio State is selected',
+)
+const noDirectory = getCampusById('michigan-ann-arbor')
+assert.equal(
+  new URL(buildCampusDirectionsUrl(noDirectory.id, undefined)).searchParams.get('destination'),
+  noDirectory.fallbackDestination,
+  'campuses without a building directory must retain their own campus destination',
+)
+
 console.log('campus data tests passed')
