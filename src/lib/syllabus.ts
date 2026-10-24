@@ -1,6 +1,7 @@
 export type ParsedAssignment = {
   id: string
   title: string
+  courseName?: string
   dueDate: string
   workHours: number
   workMinutes: number

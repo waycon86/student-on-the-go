@@ -1,3 +1,5 @@
+import { CalendarCleanup } from './components/CalendarCleanup'
+import { clearCalendarItems, hasActiveAssignment, normalizeCourseName, type ClearScope } from './lib/calendarCleanup'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { BrowserRouter, NavLink, Navigate, Route, Routes, useLocation, useSearchParams } from 'react-router-dom'
 import { CircleMarker, MapContainer, Popup, TileLayer, useMap } from 'react-leaflet'
@@ -50,6 +52,7 @@ const daysOfWeek = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const
 type WorkInput = { hours: number; minutes: number }
 
 type DraftCommitment = {
+  courseName?: string
   title: string
   date: string
   start: string
@@ -107,7 +110,7 @@ type PlannerProps = {
   handleSyllabusFile: (event: React.ChangeEvent<HTMLInputElement>) => Promise<void>
   addParsedAssignment: (entry: ParsedAssignment) => void
   removeParsedAssignment: (id: string) => void
-  updateParsedAssignment: (id: string, field: 'title' | 'dueDate' | 'workHours' | 'workMinutes', value: string | number) => void
+  updateParsedAssignment: (id: string, field: 'title' | 'dueDate' | 'workHours' | 'workMinutes' | 'courseName', value: string | number) => void
   updateWorkField: (field: 'hours' | 'minutes', value: string) => void
   addCommitment: () => void
   removeCommitment: (id: string) => void
@@ -121,6 +124,7 @@ type CalendarItem = {
   title: string
   date: string
   kind: 'assignment' | 'study' | 'commitment'
+  courseName?: string
   start?: string
   end?: string
   campusId?: string
@@ -547,6 +551,7 @@ function PlannerPage(props: PlannerProps) {
       <section className="panel">
         <div className="panel-header-row"><div><p className="eyebrow">Assignment settings</p><h2>Plan your assignment</h2></div></div>
         <label>Assignment title<input value={assignment.title} onChange={(event) => setAssignment((current) => ({ ...current, title: event.target.value }))} /></label>
+        <label>Class name (optional)<input value={assignment.courseName ?? ''} onChange={(event) => setAssignment((current) => ({ ...current, courseName: event.target.value }))} placeholder="e.g. BIO-101" /></label>
         <label>Due date<input type="date" value={assignment.dueDate} onChange={(event) => setAssignment((current) => ({ ...current, dueDate: event.target.value }))} /></label>
 
         <div className="work-input-group">
@@ -587,6 +592,7 @@ function AssignmentsPage(props: PlannerProps) {
         <div className="panel-header-row"><div><p className="eyebrow">Assignments</p><h2>Assignment details</h2></div></div>
         <p className="workflow-help">Replace the example below with your assignment, due date, and work estimate. Choose the days and times you can study. Your study blocks update as you edit.</p>
         <label>Assignment title<input value={assignment.title} onChange={(event) => setAssignment((current) => ({ ...current, title: event.target.value }))} /></label>
+        <label>Class name (optional)<input value={assignment.courseName ?? ''} onChange={(event) => setAssignment((current) => ({ ...current, courseName: event.target.value }))} placeholder="e.g. BIO-101" /></label>
         <label>Due date<input type="date" value={assignment.dueDate} onChange={(event) => setAssignment((current) => ({ ...current, dueDate: event.target.value }))} /></label>
 
         <div className="work-input-group">
@@ -622,6 +628,7 @@ function AssignmentsPage(props: PlannerProps) {
 
         <div className="commitment-form">
           <label>Class or busy time<input value={draftCommitment.title} onChange={(event) => setDraftCommitment((current) => ({ ...current, title: event.target.value }))} /></label>
+          <label>Class name (optional)<input value={draftCommitment.courseName ?? ''} onChange={(event) => setDraftCommitment((current) => ({ ...current, courseName: event.target.value }))} placeholder="Leave blank for work or clubs" /></label>
           <label>Date<input type="date" value={draftCommitment.date} onChange={(event) => setDraftCommitment((current) => ({ ...current, date: event.target.value }))} /></label>
           <div className="time-row">
             <label>Start<input type="time" value={draftCommitment.start} onChange={(event) => setDraftCommitment((current) => ({ ...current, start: event.target.value }))} /></label>
@@ -716,6 +723,7 @@ function SyllabusPage(props: PlannerProps) {
               <div key={entry.id} className="parsed-item">
                 <div className="parsed-top-row">
                   <label>Title<input value={entry.title} onChange={(event) => updateParsedAssignment(entry.id, 'title', event.target.value)} /></label>
+                  <label>Class name (optional)<input value={entry.courseName ?? ''} onChange={(event) => updateParsedAssignment(entry.id, 'courseName', event.target.value)} placeholder="e.g. BIO-101" /></label>
                   <button type="button" className="secondary-button" onClick={() => removeParsedAssignment(entry.id)}>Remove</button>
                 </div>
                 <div className="time-row">
@@ -742,23 +750,24 @@ function SyllabusPage(props: PlannerProps) {
   )
 }
 
-function CalendarPage({
-  confirmedAssignments,
-  commitments,
-  sessions,
-}: {
+function CalendarPage({ assignment, confirmedAssignments, commitments, sessions, cleanup }: {
   confirmedAssignments: AssignmentSettings[]
   commitments: Commitment[]
   sessions: StudySession[]
+  cleanup: React.ReactNode
+  assignment: AssignmentSettings
 }) {
   const [selectedItemId, setSelectedItemId] = useState<string>('')
 
   const items = useMemo<CalendarItem[]>(() => {
-    const assignmentItems = confirmedAssignments.map((assignment) => ({
-      id: `assignment-${assignment.title}-${assignment.dueDate}`,
+    const includesActive = confirmedAssignments.some((item) => item.title === assignment.title && item.dueDate === assignment.dueDate && normalizeCourseName(item.courseName) === normalizeCourseName(assignment.courseName))
+    const deadlines = hasActiveAssignment(assignment) && !includesActive ? [...confirmedAssignments, assignment] : confirmedAssignments
+    const assignmentItems = deadlines.map((assignment, index) => ({
+      id: `assignment-${index}-${assignment.title}-${assignment.dueDate}`,
       title: assignment.title,
       date: assignment.dueDate,
       kind: 'assignment' as const,
+      courseName: assignment.courseName,
       campusId: assignment.campusId,
       campusBuildingId: assignment.campusBuildingId,
       roomNumber: assignment.roomNumber,
@@ -769,6 +778,7 @@ function CalendarPage({
       title: commitment.title,
       date: commitment.date,
       kind: 'commitment' as const,
+      courseName: commitment.courseName,
       start: `${commitment.date}T${commitment.start}`,
       end: `${commitment.date}T${commitment.end}`,
       campusId: commitment.campusId,
@@ -781,6 +791,7 @@ function CalendarPage({
       title: formatSessionAssignmentTitle(session.assignmentId),
       date: session.start.slice(0, 10),
       kind: 'study' as const,
+      courseName: assignment.courseName,
       start: session.start,
       end: session.end,
     }))
@@ -792,15 +803,17 @@ function CalendarPage({
       const right = `${b.date}-${rightStart}`
       return left.localeCompare(right)
     })
-  }, [commitments, confirmedAssignments, sessions])
+  }, [assignment, commitments, confirmedAssignments, sessions])
 
   const selectedItem = items.find((item) => item.id === selectedItemId) ?? items[0] ?? null
 
   return (
     <main className="page-content calendar-page">
+      {cleanup}
       <section className="panel calendar-panel">
         <div className="panel-header-row"><h2>Calendar</h2></div>
         <p className="workflow-help">See your deadlines, busy times, and planned study sessions. Select an item to see its details. To change your plan, edit your assignment or busy times.</p>
+        {items.length === 0 ? <p className="empty-state">Your calendar is empty. Add an assignment or busy time when you are ready.</p> : null}
         <ul className="calendar-detail-list">
           {items.length === 0 ? <li className="empty-state">No items scheduled yet.</li> : items.map((item) => (
             <li key={item.id} className={selectedItemId === item.id ? 'calendar-detail-item selected' : 'calendar-detail-item'}>
@@ -809,7 +822,7 @@ function CalendarPage({
                 <span className="detail-item-main">
                   <span className={`calendar-pill ${item.kind}`}>{item.kind === 'assignment' ? 'Deadline' : item.kind === 'study' ? 'Study' : 'Commitment'}</span>
                   <strong>{item.title}</strong>
-                  <small>{formatDate(item.date)}</small>
+                  <small>{item.courseName ? `${item.courseName} · ` : ''}{formatDate(item.date)}</small>
                 </span>
               </button>
             </li>
@@ -852,6 +865,7 @@ function MySchedulePage(props: PlannerProps) {
 
         <div className="commitment-form">
           <label>Class or busy time<input value={draftCommitment.title} onChange={(event) => setDraftCommitment((current) => ({ ...current, title: event.target.value }))} /></label>
+          <label>Class name (optional)<input value={draftCommitment.courseName ?? ''} onChange={(event) => setDraftCommitment((current) => ({ ...current, courseName: event.target.value }))} placeholder="Leave blank for work or clubs" /></label>
           <label>Date<input type="date" value={draftCommitment.date} onChange={(event) => setDraftCommitment((current) => ({ ...current, date: event.target.value }))} /></label>
           <div className="time-row">
             <label>Start<input type="time" value={draftCommitment.start} onChange={(event) => setDraftCommitment((current) => ({ ...current, start: event.target.value }))} /></label>
@@ -922,6 +936,7 @@ function MorePage(props: PlannerProps) {
 
         <div className="commitment-form compact-form">
           <label>Class or busy time<input value={draftCommitment.title} onChange={(event) => setDraftCommitment((current) => ({ ...current, title: event.target.value }))} /></label>
+          <label>Class name (optional)<input value={draftCommitment.courseName ?? ''} onChange={(event) => setDraftCommitment((current) => ({ ...current, courseName: event.target.value }))} placeholder="Leave blank for work or clubs" /></label>
           <label>Date<input type="date" value={draftCommitment.date} onChange={(event) => setDraftCommitment((current) => ({ ...current, date: event.target.value }))} /></label>
           <div className="time-row"><label>Start<input type="time" value={draftCommitment.start} onChange={(event) => setDraftCommitment((current) => ({ ...current, start: event.target.value }))} /></label><label>End<input type="time" value={draftCommitment.end} onChange={(event) => setDraftCommitment((current) => ({ ...current, end: event.target.value }))} /></label></div>
           <button type="button" onClick={addCommitment}>Add busy time</button>
@@ -1473,7 +1488,7 @@ function AppContent() {
   const [importStatus, setImportStatus] = useState<ReadStatus>({ kind: 'idle', message: '' })
   const [confirmedAssignments, setConfirmedAssignments] = useState<AssignmentSettings[]>(() => {
     const saved = readStoredJson<AssignmentSettings[]>(CONFIRMED_ASSIGNMENTS_STORAGE_KEY, [initialAssignment])
-    return Array.isArray(saved) && saved.length > 0 ? saved : [initialAssignment]
+    return Array.isArray(saved) ? saved : [initialAssignment]
   })
   const [isDark, setIsDark] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false
@@ -1494,7 +1509,7 @@ function AppContent() {
   const [settingsSavedMessage, setSettingsSavedMessage] = useState('')
   const mountedSettingsRef = useRef(false)
   const [now] = useState(() => new Date())
-  const [workInput, setWorkInput] = useState<WorkInput>(() => hoursAndMinutesFromTotal(initialAssignment.totalWorkMinutes))
+  const [workInput, setWorkInput] = useState<WorkInput>(() => hoursAndMinutesFromTotal(assignment.totalWorkMinutes))
   const [sessionStatusMap, setSessionStatusMap] = useState<Record<string, StudySession['status']>>({})
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const latestExtractedTextRef = useRef('')
@@ -1677,8 +1692,8 @@ function AppContent() {
   const addParsedAssignment = (entry: ParsedAssignment) => {
     if (!entry.dueDate) return
 
-    const duplicateKey = `${entry.title.trim().toLowerCase()}|${entry.dueDate}`
-    const existingKeys = new Set(confirmedAssignments.map((item) => `${item.title.trim().toLowerCase()}|${item.dueDate}`))
+    const duplicateKey = `${normalizeCourseName(entry.courseName)}|${entry.title.trim().toLowerCase()}|${entry.dueDate}`
+    const existingKeys = new Set(confirmedAssignments.map((item) => `${normalizeCourseName(item.courseName)}|${item.title.trim().toLowerCase()}|${item.dueDate}`))
     if (existingKeys.has(duplicateKey)) {
       setImportStatus({ kind: 'info', message: `${entry.title} is already in the planner.` })
       return
@@ -1686,6 +1701,7 @@ function AppContent() {
 
     const assignmentToAdd: AssignmentSettings = {
       title: entry.title,
+      courseName: entry.courseName?.trim() || undefined,
       dueDate: entry.dueDate,
       totalWorkMinutes: totalMinutesFromWorkInput({ hours: entry.workHours, minutes: entry.workMinutes }),
       sessionMinutes: assignment.sessionMinutes,
@@ -1705,7 +1721,7 @@ function AppContent() {
 
   const removeParsedAssignment = (id: string) => setParsedAssignments((current) => current.filter((item) => item.id !== id))
 
-  const updateParsedAssignment = (id: string, field: 'title' | 'dueDate' | 'workHours' | 'workMinutes', value: string | number) => {
+  const updateParsedAssignment = (id: string, field: 'title' | 'dueDate' | 'workHours' | 'workMinutes' | 'courseName', value: string | number) => {
     setParsedAssignments((current) =>
       current.map((item) => {
         if (item.id !== id) return item
@@ -1726,14 +1742,15 @@ function AppContent() {
       return
     }
 
-    const existingKeys = new Set(confirmedAssignments.map((item) => `${item.title.trim().toLowerCase()}|${item.dueDate}`))
+    const existingKeys = new Set(confirmedAssignments.map((item) => `${normalizeCourseName(item.courseName)}|${item.title.trim().toLowerCase()}|${item.dueDate}`))
     const newEntries: AssignmentSettings[] = []
 
     for (const entry of validEntries) {
-      const key = `${entry.title.trim().toLowerCase()}|${entry.dueDate}`
+      const key = `${normalizeCourseName(entry.courseName)}|${entry.title.trim().toLowerCase()}|${entry.dueDate}`
       if (existingKeys.has(key)) continue
       newEntries.push({
         title: entry.title.trim(),
+        courseName: entry.courseName?.trim() || undefined,
         dueDate: entry.dueDate,
         totalWorkMinutes: totalMinutesFromWorkInput({ hours: entry.workHours, minutes: entry.workMinutes }),
         sessionMinutes: assignment.sessionMinutes,
@@ -1766,6 +1783,7 @@ function AppContent() {
       {
         id: `c-${crypto.randomUUID()}`,
         title: draftCommitment.title,
+        courseName: draftCommitment.courseName?.trim() || undefined,
         date: draftCommitment.date,
         start: draftCommitment.start,
         end: draftCommitment.end,
@@ -1778,12 +1796,35 @@ function AppContent() {
     setDraftCommitment((current) => ({
       ...current,
       title: 'Work Shift',
+      courseName: '',
       date: assignment.dueDate,
       start: '12:00',
       end: '15:00',
       campusId: selectedCampusId,
       roomNumber: '',
     }))
+  }
+
+  const editAssignment: React.Dispatch<React.SetStateAction<AssignmentSettings>> = (update) => {
+    const next = typeof update === 'function' ? update(assignment) : update
+    setAssignment(next)
+    setConfirmedAssignments((current) => current.map((item) => item.title === assignment.title && item.dueDate === assignment.dueDate && normalizeCourseName(item.courseName) === normalizeCourseName(assignment.courseName) ? next : item))
+  }
+
+  const clearCalendar = (scope: ClearScope) => {
+    const result = clearCalendarItems(assignment, confirmedAssignments, commitments, scope)
+    setConfirmedAssignments(result.assignments)
+    setCommitments(result.commitments)
+    if (result.removeActive) {
+      setAssignment(result.assignment)
+      setWorkInput({ hours: 0, minutes: 0 })
+      setSessionStatusMap({})
+    }
+  }
+
+  const labelActiveAssignment = (courseName: string) => {
+    setAssignment((current) => ({ ...current, courseName }))
+    setConfirmedAssignments((current) => current.map((item) => item.title === assignment.title && item.dueDate === assignment.dueDate && normalizeCourseName(item.courseName) === normalizeCourseName(assignment.courseName) ? { ...item, courseName } : item))
   }
 
   const removeCommitment = (id: string) => setCommitments((current) => current.filter((entry) => entry.id !== id))
@@ -1823,7 +1864,7 @@ function AppContent() {
 
   const pageProps: PlannerProps = {
     assignment,
-    setAssignment,
+    setAssignment: editAssignment,
     commitments,
     setCommitments,
     draftCommitment,
@@ -1895,7 +1936,20 @@ function AppContent() {
           <Route path="/planner" element={<PlannerPage {...pageProps} />} />
           <Route path="/assignments" element={<AssignmentsPage {...pageProps} />} />
           <Route path="/syllabus" element={<SyllabusPage {...pageProps} />} />
-          <Route path="/calendar" element={<CalendarPage confirmedAssignments={confirmedAssignments} commitments={commitments} sessions={sessions} />} />
+          <Route path="/calendar" element={<CalendarPage assignment={assignment} confirmedAssignments={confirmedAssignments} commitments={commitments} sessions={sessions} cleanup={<CalendarCleanup
+            assignment={assignment}
+            assignments={confirmedAssignments}
+            commitments={commitments}
+            sessionCount={sessions.length}
+            onLabelActive={labelActiveAssignment}
+            onLabelAssignment={(index, courseName) => {
+              const item = confirmedAssignments[index]
+              setConfirmedAssignments((current) => current.map((entry, position) => position === index ? { ...entry, courseName } : entry))
+              if (item.title === assignment.title && item.dueDate === assignment.dueDate && normalizeCourseName(item.courseName) === normalizeCourseName(assignment.courseName)) setAssignment((current) => ({ ...current, courseName }))
+            }}
+            onLabelCommitment={(id, courseName) => setCommitments((current) => current.map((item) => item.id === id ? { ...item, courseName } : item))}
+            onClear={clearCalendar}
+          />} />} />
           <Route path="/schedule" element={<MySchedulePage {...pageProps} />} />
           <Route path="/campus-map" element={<CampusMapPage selectedCampusId={selectedCampusId} confirmedAssignments={confirmedAssignments} commitments={commitments} />} />
           <Route
