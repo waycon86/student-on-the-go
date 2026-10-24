@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import {
   buildCampusDirectionsUrl,
   buildGoogleMapsWalkingUrl,
+  CAMPUS_CONFIGS,
   DEFAULT_CAMPUS_ID,
   getCampusById,
 } from './campusData.ts'
@@ -57,5 +58,31 @@ assert.equal(
   noDirectory.fallbackDestination,
   'campuses without a building directory must retain their own campus destination',
 )
+
+assert.equal(new Set(CAMPUS_CONFIGS.map((entry) => entry.id)).size, CAMPUS_CONFIGS.length, 'campus IDs must be unique')
+for (const entry of CAMPUS_CONFIGS) {
+  assert.ok((entry.centerLatitude !== undefined && entry.centerLongitude !== undefined) || entry.overview, `${entry.id}: every campus needs a saved overview`)
+  if (entry.overview) {
+    const [[south, west], [north, east]] = entry.overview.bounds
+    assert.ok([south, west, north, east].every(Number.isFinite) && south < north && west < east, `${entry.id}: overview bounds must be ordered and finite`)
+    assert.ok(south > 24 && north < 50 && west > -125 && east < -66, `${entry.id}: overview must remain in the configured US campus region`)
+    assert.ok(entry.overview.sources.length > 0 && entry.overview.sources.every((source) => source.startsWith('https://www.openstreetmap.org/')), `${entry.id}: overview requires source attribution`)
+  }
+  assert.equal(new URL(entry.officialMapUrl).protocol, 'https:', `${entry.id}: official map must use HTTPS`)
+  if (entry.mapResourcesUrl) assert.equal(new URL(entry.mapResourcesUrl).protocol, 'https:', `${entry.id}: map resources must use HTTPS`)
+  assert.equal(new Set(entry.buildings.map((building) => building.id)).size, entry.buildings.length, `${entry.id}: building IDs must be unique within a campus`)
+  const unknown = new URL(buildCampusDirectionsUrl(entry.id, '__not_in_this_campus__'))
+  assert.equal(unknown.searchParams.get('destination'), entry.fallbackDestination, `${entry.id}: missing buildings must use this campus, not another school`)
+  assert.equal(unknown.searchParams.get('travelmode'), 'walking', `${entry.id}: fallback must retain walking directions`)
+  for (const building of entry.buildings) {
+    assert.ok(Number.isFinite(building.latitude) && Number.isFinite(building.longitude), `${entry.id}/${building.id}: pin coordinates must be finite`)
+    assert.ok(Math.abs(building.latitude!) <= 90 && Math.abs(building.longitude!) <= 180, `${entry.id}/${building.id}: pin coordinates must be valid`)
+    assert.equal(
+      new URL(buildCampusDirectionsUrl(entry.id, building.id)).searchParams.get('destination'),
+      `${building.latitude},${building.longitude}`,
+      `${entry.id}/${building.id}: directions must use this building's sourced coordinates`,
+    )
+  }
+}
 
 console.log('campus data tests passed')

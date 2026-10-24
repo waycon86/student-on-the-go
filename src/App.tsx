@@ -973,12 +973,13 @@ function MorePage(props: PlannerProps) {
   )
 }
 
-function CampusMapViewport({ center, zoom }: { center: [number, number]; zoom: number }) {
+function CampusMapViewport({ center, zoom, bounds }: { center: [number, number]; zoom: number; bounds?: [[number, number], [number, number]] }) {
   const map = useMap()
   const [latitude, longitude] = center
   useEffect(() => {
-    map.setView([latitude, longitude], zoom)
-  }, [map, latitude, longitude, zoom])
+    if (bounds) map.fitBounds(bounds, { padding: [16, 16], maxZoom: 15 })
+    else map.setView([latitude, longitude], zoom)
+  }, [map, latitude, longitude, zoom, bounds])
   return null
 }
 
@@ -1016,7 +1017,9 @@ function CampusMapPage({
 }) {
   const [searchParams, setSearchParams] = useSearchParams()
   const paramCampusId = searchParams.get('campus')
-  const campusId = paramCampusId ? getCampusById(paramCampusId).id : selectedCampusId
+  const requestedCampus = CAMPUS_CONFIGS.find((campus) => campus.id === paramCampusId)
+  const invalidCampusRequested = Boolean(paramCampusId && !requestedCampus)
+  const campusId = requestedCampus?.id ?? selectedCampusId
   const selectedCampus = getCampusById(campusId)
 
   const [campusSearch, setCampusSearch] = useState('')
@@ -1024,7 +1027,6 @@ function CampusMapPage({
   const [showMyClasses, setShowMyClasses] = useState(false)
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null)
   const [locationMessage, setLocationMessage] = useState('')
-  const [geocodedCenter, setGeocodedCenter] = useState<{ campusId: string; coordinates: [number, number] } | null>(null)
   const [customDestination, setCustomDestination] = useState('')
   const [touchInteractionEnabled, setTouchInteractionEnabled] = useState(false)
 
@@ -1033,6 +1035,7 @@ function CampusMapPage({
   const selectedBuildingId = requestedBuildingId && getLocationSelectOptions(campusId).some((building) => building.id === requestedBuildingId)
     ? requestedBuildingId
     : ''
+  const invalidBuildingRequested = Boolean(requestedBuildingId && !selectedBuildingId)
 
   const updateMapParams = (updates: { campusId?: string; buildingId?: string; room?: string }) => {
     const next = new URLSearchParams(searchParams)
@@ -1063,35 +1066,6 @@ function CampusMapPage({
   const campusOptions = filteredCampuses.some((campus) => campus.id === campusId)
     ? filteredCampuses
     : [selectedCampus, ...filteredCampuses]
-
-  useEffect(() => {
-    if (selectedCampus.centerLatitude !== undefined && selectedCampus.centerLongitude !== undefined) {
-      return
-    }
-
-    let canceled = false
-    const controller = new AbortController()
-    const query = encodeURIComponent(selectedCampus.fallbackDestination)
-    fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${query}`, {
-      method: 'GET',
-      signal: controller.signal,
-    })
-      .then((response) => response.json() as Promise<Array<{ lat: string; lon: string }>>)
-      .then((results) => {
-        if (canceled || !results[0]) return
-        const lat = Number(results[0].lat)
-        const lon = Number(results[0].lon)
-        if (Number.isFinite(lat) && Number.isFinite(lon)) {
-          setGeocodedCenter({ campusId, coordinates: [lat, lon] })
-        }
-      })
-      .catch(() => { /* Official maps remain available when campus lookup fails. */ })
-
-    return () => {
-      canceled = true
-      controller.abort()
-    }
-  }, [campusId, selectedCampus.centerLatitude, selectedCampus.centerLongitude, selectedCampus.fallbackDestination])
 
   const allBuildings = selectedCampus.buildings
   const hasBuildings = allBuildings.length > 0
@@ -1128,13 +1102,14 @@ function CampusMapPage({
   }
 
   const filteredMappableBuildings = mappableBuildings.filter((building) => filteredBuildings.some((entry) => entry.id === building.id))
-  const selectedBuilding = filteredBuildings.find((building) => building.id === selectedBuildingId) ?? filteredBuildings[0]
+  const selectedBuilding = invalidBuildingRequested ? undefined : filteredBuildings.find((building) => building.id === selectedBuildingId) ?? filteredBuildings[0]
 
-  const campusCenter: [number, number] = selectedCampus.centerLatitude !== undefined && selectedCampus.centerLongitude !== undefined
+  const overviewBounds = selectedCampus.overview?.bounds
+  const campusCenter: [number, number] | null = selectedCampus.centerLatitude !== undefined && selectedCampus.centerLongitude !== undefined
     ? [selectedCampus.centerLatitude, selectedCampus.centerLongitude]
-    : geocodedCenter?.campusId === campusId ? geocodedCenter.coordinates : [39.8283, -98.5795]
+    : overviewBounds ? [(overviewBounds[0][0] + overviewBounds[1][0]) / 2, (overviewBounds[0][1] + overviewBounds[1][1]) / 2] : null
   const focusSelectedBuilding = Boolean(selectedBuildingId || search.trim())
-  const mapCenter: [number, number] = focusSelectedBuilding && selectedBuilding && hasValidCoordinates(selectedBuilding)
+  const mapCenter: [number, number] | null = focusSelectedBuilding && selectedBuilding && hasValidCoordinates(selectedBuilding)
     ? [selectedBuilding.latitude, selectedBuilding.longitude]
     : campusCenter
   const mapZoom = focusSelectedBuilding && selectedBuilding && hasValidCoordinates(selectedBuilding) ? 16 : 14
@@ -1179,8 +1154,13 @@ function CampusMapPage({
             <p className="eyebrow">{selectedCampus.universityName} · {selectedCampus.campusName}</p>
             <h2>Campus map</h2>
           </div>
-          <a href={selectedCampus.officialMapUrl} target="_blank" rel="noreferrer" className="official-campus-link">Official campus map</a>
+          <div className="campus-actions">
+            <a href={selectedCampus.officialMapUrl} target="_blank" rel="noreferrer" className="official-campus-link">Official campus map</a>
+            {selectedCampus.mapResourcesUrl ? <a href={selectedCampus.mapResourcesUrl} target="_blank" rel="noreferrer" className="official-campus-link">Map help and downloads</a> : null}
+          </div>
         </div>
+        {invalidCampusRequested ? <p className="field-hint" role="status">That campus link is unavailable. Showing your selected campus instead.</p> : null}
+        {invalidBuildingRequested ? <p className="field-hint" role="status">That building is not in this campus directory. Search by name or use the official map.</p> : null}
 
         <div className="campus-toolbar">
           <label className="campus-search">Choose campus
@@ -1240,7 +1220,7 @@ function CampusMapPage({
           >
             My classes
           </button>
-          <button type="button" className="secondary-button" onClick={requestLocation}>Use my location</button>
+          <button type="button" className="secondary-button" disabled={!mapCenter} onClick={requestLocation}>Use my location</button>
           <button
             type="button"
             className="secondary-button"
@@ -1270,6 +1250,7 @@ function CampusMapPage({
           </div>
         ) : null}
 
+        {mapCenter ? <>
         <div className="campus-map-touch-controls">
           <button
             type="button"
@@ -1287,7 +1268,7 @@ function CampusMapPage({
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
-            <CampusMapViewport center={mapCenter} zoom={mapZoom} />
+            <CampusMapViewport center={mapCenter} zoom={mapZoom} bounds={mapZoom === 14 ? overviewBounds : undefined} />
             <CampusMapInteraction touchInteractionEnabled={touchInteractionEnabled} />
 
             {filteredMappableBuildings.map((building) => {
@@ -1322,6 +1303,12 @@ function CampusMapPage({
             ) : null}
           </MapContainer>
         </div>
+        </> : (
+          <div className="campus-empty-state" role="status">
+            <h3>Interactive map unavailable</h3>
+            <p>You can still enter a building name for walking directions or open the official campus map.</p>
+          </div>
+        )}
 
         {hasBuildings ? <div className="campus-directory-list">
           {filteredBuildings.length > 0 ? (
