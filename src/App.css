@@ -1824,3 +1824,47 @@ button {
     width: 100%;
   }
 }
+
+.calendar-cleanup {
+  grid-column: 1 / -1;
+}
+
+.calendar-cleanup details {
+  margin-block: 1rem;
+}
+
+.calendar-cleanup label {
+  display: grid;
+  gap: 0.5rem;
+  margin-block: 1rem;
+  overflow-wrap: anywhere;
+}
+
+.calendar-cleanup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.calendar-clear-dialog {
+  width: min(34rem, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2rem);
+  box-sizing: border-box;
+  overflow-y: auto;
+  background: var(--panel-bg);
+  color: var(--text-color);
+  border: 1px solid var(--panel-border);
+  border-radius: 1rem;
+  padding: 1.25rem;
+  overflow-wrap: anywhere;
+}
+
+.calendar-clear-dialog::backdrop {
+  background: rgb(0 0 0 / 65%);
+}
+
+.calendar-removal-preview {
+  max-height: 12rem;
+  overflow-y: auto;
+  padding-inline-start: 1.25rem;
+}

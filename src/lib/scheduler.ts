@@ -4,6 +4,7 @@ export type SessionStatus = 'planned' | 'completed' | 'missed'
 export type Commitment = {
   id: string
   title: string
+  courseName?: string
   date: string
   start: string
   end: string
@@ -24,6 +25,7 @@ export type StudySession = {
 
 export type AssignmentSettings = {
   title: string
+  courseName?: string
   dueDate: string
   totalWorkMinutes: number
   sessionMinutes: number
