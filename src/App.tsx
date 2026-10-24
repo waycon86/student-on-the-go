@@ -888,11 +888,11 @@ function MySchedulePage(props: PlannerProps) {
         <ul className="session-list">
           {sessions.length === 0 ? <li className="empty-state">No study blocks fit right now.</li> : sessions.map((session) => (
             <li key={session.id} className="session-item">
-              <div className="session-meta"><strong>{formatSessionAssignmentTitle(session.assignmentId)}</strong><span>{formatDate(session.start.slice(0, 10))} • {formatTime(new Date(session.start))}–{formatTime(new Date(session.end))}</span></div>
-              <div className="session-controls">
-                <button type="button" className={session.status === 'completed' ? 'status active' : 'status'} onClick={() => updateSessionStatus(session.id, 'completed')}>Complete</button>
-                <button type="button" className={session.status === 'missed' ? 'status active warn' : 'status warn'} onClick={() => updateSessionStatus(session.id, 'missed')}>Missed</button>
-                <button type="button" className={session.status === 'planned' ? 'status active neutral' : 'status neutral'} onClick={() => updateSessionStatus(session.id, 'planned')}>Planned</button>
+              <div className="session-meta"><strong>{formatSessionAssignmentTitle(session.assignmentId)}</strong><span>{formatDate(session.start.slice(0, 10))} • {formatTime(new Date(session.start))}–{formatTime(new Date(session.end))}</span><span className="session-current-status">Current status: {session.status === 'completed' ? 'Completed' : session.status === 'missed' ? 'Missed' : 'Planned'}</span></div>
+              <div className="session-controls" role="group" aria-label="Session status">
+                <button type="button" aria-pressed={session.status === 'completed'} className={session.status === 'completed' ? 'status active' : 'status'} onClick={() => updateSessionStatus(session.id, 'completed')}>Complete</button>
+                <button type="button" aria-pressed={session.status === 'missed'} className={session.status === 'missed' ? 'status active warn' : 'status warn'} onClick={() => updateSessionStatus(session.id, 'missed')}>Missed</button>
+                <button type="button" aria-pressed={session.status === 'planned'} className={session.status === 'planned' ? 'status active neutral' : 'status neutral'} onClick={() => updateSessionStatus(session.id, 'planned')}>Planned</button>
               </div>
             </li>
           ))}
@@ -953,11 +953,11 @@ function MorePage(props: PlannerProps) {
           <ul className="session-list">
             {sessions.map((session) => (
               <li key={session.id} className="session-item">
-                <div className="session-meta"><strong>{formatSessionAssignmentTitle(session.assignmentId)}</strong><span>{formatDate(session.start.slice(0, 10))} • {formatTime(new Date(session.start))}–{formatTime(new Date(session.end))}</span></div>
-                <div className="session-controls">
-                  <button type="button" className={session.status === 'completed' ? 'status active' : 'status'} onClick={() => updateSessionStatus(session.id, 'completed')}>Complete</button>
-                  <button type="button" className={session.status === 'missed' ? 'status active warn' : 'status warn'} onClick={() => updateSessionStatus(session.id, 'missed')}>Missed</button>
-                  <button type="button" className={session.status === 'planned' ? 'status active neutral' : 'status neutral'} onClick={() => updateSessionStatus(session.id, 'planned')}>Planned</button>
+                <div className="session-meta"><strong>{formatSessionAssignmentTitle(session.assignmentId)}</strong><span>{formatDate(session.start.slice(0, 10))} • {formatTime(new Date(session.start))}–{formatTime(new Date(session.end))}</span><span className="session-current-status">Current status: {session.status === 'completed' ? 'Completed' : session.status === 'missed' ? 'Missed' : 'Planned'}</span></div>
+                <div className="session-controls" role="group" aria-label="Session status">
+                  <button type="button" aria-pressed={session.status === 'completed'} className={session.status === 'completed' ? 'status active' : 'status'} onClick={() => updateSessionStatus(session.id, 'completed')}>Complete</button>
+                  <button type="button" aria-pressed={session.status === 'missed'} className={session.status === 'missed' ? 'status active warn' : 'status warn'} onClick={() => updateSessionStatus(session.id, 'missed')}>Missed</button>
+                  <button type="button" aria-pressed={session.status === 'planned'} className={session.status === 'planned' ? 'status active neutral' : 'status neutral'} onClick={() => updateSessionStatus(session.id, 'planned')}>Planned</button>
                 </div>
               </li>
             ))}
