@@ -181,6 +181,11 @@ function getCampusesForCollege(collegeId: SchoolThemeId): CampusConfig[] {
   return matches.length > 0 ? matches : [getCampusById(DEFAULT_CAMPUS_ID)]
 }
 
+function getCampusPickerLabel(campus: CampusConfig): string {
+  const school = SCHOOL_THEMES.find((theme) => COLLEGE_UNIVERSITY_NAMES[theme.id].includes(campus.universityName))
+  return `${school?.name ?? campus.universityName} · ${campus.campusName.replace(/ Campus$/, '')}`
+}
+
 const initialAssignment: AssignmentSettings = {
   title: 'Research Essay',
   dueDate: '2026-10-27',
@@ -968,12 +973,13 @@ function MorePage(props: PlannerProps) {
   )
 }
 
-function CampusMapViewport({ center, zoom }: { center: [number, number]; zoom: number }) {
+function CampusMapViewport({ center, zoom, bounds }: { center: [number, number]; zoom: number; bounds?: [[number, number], [number, number]] }) {
   const map = useMap()
   const [latitude, longitude] = center
   useEffect(() => {
-    map.setView([latitude, longitude], zoom)
-  }, [map, latitude, longitude, zoom])
+    if (bounds) map.fitBounds(bounds, { padding: [16, 16], maxZoom: 15 })
+    else map.setView([latitude, longitude], zoom)
+  }, [map, latitude, longitude, zoom, bounds])
   return null
 }
 
@@ -1011,7 +1017,9 @@ function CampusMapPage({
 }) {
   const [searchParams, setSearchParams] = useSearchParams()
   const paramCampusId = searchParams.get('campus')
-  const campusId = paramCampusId ? getCampusById(paramCampusId).id : selectedCampusId
+  const requestedCampus = CAMPUS_CONFIGS.find((campus) => campus.id === paramCampusId)
+  const invalidCampusRequested = Boolean(paramCampusId && !requestedCampus)
+  const campusId = requestedCampus?.id ?? selectedCampusId
   const selectedCampus = getCampusById(campusId)
 
   const [campusSearch, setCampusSearch] = useState('')
@@ -1019,7 +1027,6 @@ function CampusMapPage({
   const [showMyClasses, setShowMyClasses] = useState(false)
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null)
   const [locationMessage, setLocationMessage] = useState('')
-  const [geocodedCenter, setGeocodedCenter] = useState<[number, number] | null>(null)
   const [customDestination, setCustomDestination] = useState('')
   const [touchInteractionEnabled, setTouchInteractionEnabled] = useState(false)
 
@@ -1028,6 +1035,7 @@ function CampusMapPage({
   const selectedBuildingId = requestedBuildingId && getLocationSelectOptions(campusId).some((building) => building.id === requestedBuildingId)
     ? requestedBuildingId
     : ''
+  const invalidBuildingRequested = Boolean(requestedBuildingId && !selectedBuildingId)
 
   const updateMapParams = (updates: { campusId?: string; buildingId?: string; room?: string }) => {
     const next = new URLSearchParams(searchParams)
@@ -1055,39 +1063,12 @@ function CampusMapPage({
       return text.includes(term)
     })
   }, [campusSearch])
-
-  useEffect(() => {
-    if (selectedCampus.centerLatitude !== undefined && selectedCampus.centerLongitude !== undefined) {
-      return
-    }
-
-    let canceled = false
-    const controller = new AbortController()
-    const query = encodeURIComponent(selectedCampus.fallbackDestination)
-    fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${query}`, {
-      method: 'GET',
-      signal: controller.signal,
-    })
-      .then((response) => response.json() as Promise<Array<{ lat: string; lon: string }>>)
-      .then((results) => {
-        if (canceled || !results[0]) return
-        const lat = Number(results[0].lat)
-        const lon = Number(results[0].lon)
-        if (Number.isFinite(lat) && Number.isFinite(lon)) {
-          setGeocodedCenter([lat, lon])
-        }
-      })
-      .catch(() => {
-        if (!canceled) setGeocodedCenter([39.8283, -98.5795])
-      })
-
-    return () => {
-      canceled = true
-      controller.abort()
-    }
-  }, [selectedCampus.centerLatitude, selectedCampus.centerLongitude, selectedCampus.fallbackDestination])
+  const campusOptions = filteredCampuses.some((campus) => campus.id === campusId)
+    ? filteredCampuses
+    : [selectedCampus, ...filteredCampuses]
 
   const allBuildings = selectedCampus.buildings
+  const hasBuildings = allBuildings.length > 0
   const mappableBuildings = allBuildings.filter(hasValidCoordinates)
 
   const myClassBuildingIds = useMemo(() => {
@@ -1121,15 +1102,22 @@ function CampusMapPage({
   }
 
   const filteredMappableBuildings = mappableBuildings.filter((building) => filteredBuildings.some((entry) => entry.id === building.id))
-  const selectedBuilding = allBuildings.find((building) => building.id === selectedBuildingId) ?? filteredBuildings[0] ?? allBuildings[0]
+  const selectedBuilding = invalidBuildingRequested ? undefined : filteredBuildings.find((building) => building.id === selectedBuildingId) ?? filteredBuildings[0]
 
-  const mapCenter: [number, number] = selectedBuilding && hasValidCoordinates(selectedBuilding)
+  const overviewBounds = selectedCampus.overview?.bounds
+  const campusCenter: [number, number] | null = selectedCampus.centerLatitude !== undefined && selectedCampus.centerLongitude !== undefined
+    ? [selectedCampus.centerLatitude, selectedCampus.centerLongitude]
+    : overviewBounds ? [(overviewBounds[0][0] + overviewBounds[1][0]) / 2, (overviewBounds[0][1] + overviewBounds[1][1]) / 2] : null
+  const focusSelectedBuilding = Boolean(selectedBuildingId || search.trim())
+  const mapCenter: [number, number] | null = focusSelectedBuilding && selectedBuilding && hasValidCoordinates(selectedBuilding)
     ? [selectedBuilding.latitude, selectedBuilding.longitude]
-    : geocodedCenter ?? [39.8283, -98.5795]
+    : campusCenter
+  const mapZoom = focusSelectedBuilding && selectedBuilding && hasValidCoordinates(selectedBuilding) ? 16 : 14
 
   const selectedDirectionsLink = selectedBuilding ? buildCampusDirectionsUrl(campusId, selectedBuilding.id, roomNumber) : buildCampusDirectionsUrl(campusId, undefined, roomNumber)
-  const customDirectionsLink = customDestination.trim()
-    ? buildGoogleMapsWalkingUrl(`${customDestination.trim()}, ${selectedCampus.universityName}, ${selectedCampus.city}, ${selectedCampus.state}`)
+  const destinationName = customDestination.trim() || (filteredBuildings.length === 0 ? search.trim() : '')
+  const customDirectionsLink = destinationName
+    ? buildGoogleMapsWalkingUrl(`${destinationName}, ${selectedCampus.universityName}, ${selectedCampus.city}, ${selectedCampus.state}`)
     : ''
   const directionsLink = customDirectionsLink || selectedDirectionsLink
 
@@ -1166,15 +1154,22 @@ function CampusMapPage({
             <p className="eyebrow">{selectedCampus.universityName} · {selectedCampus.campusName}</p>
             <h2>Campus map</h2>
           </div>
-          <a href={selectedCampus.officialMapUrl} target="_blank" rel="noreferrer" className="official-campus-link">Official campus map</a>
+          <div className="campus-actions">
+            <a href={selectedCampus.officialMapUrl} target="_blank" rel="noreferrer" className="official-campus-link">Official campus map</a>
+            {selectedCampus.mapResourcesUrl ? <a href={selectedCampus.mapResourcesUrl} target="_blank" rel="noreferrer" className="official-campus-link">Map help and downloads</a> : null}
+          </div>
         </div>
+        {invalidCampusRequested ? <p className="field-hint" role="status">That campus link is unavailable. Showing your selected campus instead.</p> : null}
+        {invalidBuildingRequested ? <p className="field-hint" role="status">That building is not in this campus directory. Search by name or use the official map.</p> : null}
 
         <div className="campus-toolbar">
           <label className="campus-search">Choose campus
-            <input value={campusSearch} onChange={(event) => setCampusSearch(event.target.value)} placeholder="Search university or campus" />
+            <input aria-label="Search university or campus" value={campusSearch} onChange={(event) => setCampusSearch(event.target.value)} placeholder="Search university or campus" />
+            {filteredCampuses.length === 0 ? <small role="status">No campuses match your search. Your current campus is still selected.</small> : null}
           </label>
           <label className="campus-search">Campus
             <select
+              aria-label="Campus"
               value={campusId}
               onChange={(event) => {
                 const nextCampusId = event.target.value
@@ -1186,28 +1181,35 @@ function CampusMapPage({
                 setLocationMessage('')
               }}
             >
-              {filteredCampuses.map((campus) => (
-                <option key={campus.id} value={campus.id}>{getCampusLabel(campus)}</option>
+              {campusOptions.map((campus) => (
+                <option key={campus.id} value={campus.id}>{getCampusPickerLabel(campus)}</option>
               ))}
             </select>
+            <small className="campus-selected-label">{getCampusLabel(selectedCampus)}</small>
           </label>
         </div>
 
         <div className="campus-toolbar">
-          <label className="campus-search">Search building
+          <label className="campus-search">{hasBuildings ? 'Search building' : 'Find a building'}
             <input
-              value={search}
+              value={hasBuildings ? search : customDestination}
               onChange={(event) => {
                 const nextSearch = event.target.value
+                if (!hasBuildings) {
+                  setCustomDestination(nextSearch)
+                  return
+                }
                 setSearch(nextSearch)
                 const nextBuildingId = findFirstMatchingBuildingId(nextSearch, showMyClasses)
                 updateMapParams({ buildingId: nextBuildingId })
               }}
-              placeholder="Search by building or address"
+              placeholder={hasBuildings ? 'Search by building or address' : 'Enter a building name or address'}
             />
           </label>
           <button
             type="button"
+            disabled={!hasBuildings}
+            aria-pressed={showMyClasses}
             className={showMyClasses ? 'secondary-button active-filter' : 'secondary-button'}
             onClick={() => {
               const nextShowMyClasses = !showMyClasses
@@ -1218,7 +1220,7 @@ function CampusMapPage({
           >
             My classes
           </button>
-          <button type="button" className="secondary-button" onClick={requestLocation}>Use my location</button>
+          <button type="button" className="secondary-button" disabled={!mapCenter} onClick={requestLocation}>Use my location</button>
           <button
             type="button"
             className="secondary-button"
@@ -1233,11 +1235,22 @@ function CampusMapPage({
           >
             Clear filters
           </button>
-          <span className="campus-status-chip">Showing {filteredBuildings.length} building{filteredBuildings.length === 1 ? '' : 's'}</span>
+          <span className="campus-status-chip" role="status">{hasBuildings ? `Showing ${filteredBuildings.length} of ${allBuildings.length} buildings` : 'Building pins not available yet'}</span>
         </div>
         {locationMessage ? <p className="field-hint">{locationMessage}</p> : null}
-        {selectedCampus.buildingCoverage === 'partial' ? <p className="field-hint">Building coverage is partial for this campus. Use the official campus map for complete listings.</p> : null}
+        {selectedCampus.buildingCoverage === 'partial' && hasBuildings ? <p className="field-hint">This is a partial building directory. Use the official campus map for complete listings.</p> : null}
+        {!hasBuildings ? (
+          <div className="campus-empty-state" role="status">
+            <h3>Building pins aren't available for this campus yet.</h3>
+            <p>Enter a building name above for walking directions, or open the official map to find any campus building.</p>
+            <div className="campus-actions">
+              <a href={directionsLink} target="_blank" rel="noreferrer" className="primary-link-button">{destinationName ? 'Get walking directions' : 'Walking directions to campus'}</a>
+              <a href={selectedCampus.officialMapUrl} target="_blank" rel="noreferrer" className="secondary-button campus-official-link">Official campus map</a>
+            </div>
+          </div>
+        ) : null}
 
+        {mapCenter ? <>
         <div className="campus-map-touch-controls">
           <button
             type="button"
@@ -1250,12 +1263,12 @@ function CampusMapPage({
           <p>{touchInteractionEnabled ? 'Drag to move the map. Tap Scroll page when finished.' : 'Swipe to scroll the page. Tap Move map to pan.'}</p>
         </div>
         <div className={`campus-map-canvas${touchInteractionEnabled ? ' map-interactive' : ''}`}>
-          <MapContainer center={mapCenter} zoom={selectedBuilding && hasValidCoordinates(selectedBuilding) ? 16 : 14} scrollWheelZoom={false} attributionControl={true}>
+          <MapContainer center={mapCenter} zoom={mapZoom} scrollWheelZoom={false} attributionControl={true}>
             <TileLayer
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
-            <CampusMapViewport center={mapCenter} zoom={selectedBuilding && hasValidCoordinates(selectedBuilding) ? 16 : 14} />
+            <CampusMapViewport center={mapCenter} zoom={mapZoom} bounds={mapZoom === 14 ? overviewBounds : undefined} />
             <CampusMapInteraction touchInteractionEnabled={touchInteractionEnabled} />
 
             {filteredMappableBuildings.map((building) => {
@@ -1290,8 +1303,14 @@ function CampusMapPage({
             ) : null}
           </MapContainer>
         </div>
+        </> : (
+          <div className="campus-empty-state" role="status">
+            <h3>Interactive map unavailable</h3>
+            <p>You can still enter a building name for walking directions or open the official campus map.</p>
+          </div>
+        )}
 
-        <div className="campus-directory-list">
+        {hasBuildings ? <div className="campus-directory-list">
           {filteredBuildings.length > 0 ? (
             filteredBuildings.map((building) => {
               const active = selectedBuilding?.id === building.id
@@ -1303,30 +1322,34 @@ function CampusMapPage({
               )
             })
           ) : (
-            <div className="empty-state">No map matches found. Clear filters or open the official campus map.</div>
+            <div className="campus-empty-state" role="status">
+              <h3>{showMyClasses && myClassBuildingIds.size === 0 ? 'No class buildings saved for this campus.' : 'No buildings match your filters.'}</h3>
+              <p>{showMyClasses && myClassBuildingIds.size === 0 ? 'Add a campus building to an assignment or class, or turn off My classes to see the directory.' : 'Try another building name, clear the filters, or use walking directions for the name you entered.'}</p>
+              <a href={directionsLink} target="_blank" rel="noreferrer" className="primary-link-button">{destinationName ? 'Get walking directions' : 'Walking directions to campus'}</a>
+            </div>
           )}
-        </div>
+        </div> : null}
       </section>
 
       <section className="panel campus-detail-panel">
         <details className="campus-mobile-details" open>
           <summary>Building details</summary>
           <div className="campus-detail-wrap">
-            <div className="panel-header-row"><div><p className="eyebrow">Selected building</p><h2>{selectedBuilding?.name ?? 'No building selected'}</h2></div></div>
+            <div className="panel-header-row"><div><p className="eyebrow">{selectedBuilding ? 'Selected building' : 'Destination'}</p><h2>{selectedBuilding?.name ?? (destinationName || selectedCampus.campusName)}</h2></div></div>
             <div className="campus-detail-meta">
-              <span>{selectedBuilding?.shortName ?? 'Campus marker'}</span>
+              <span>{selectedBuilding?.shortName ?? 'Campus directions'}</span>
               <span>{selectedBuilding ? toAddressLine(selectedBuilding) : selectedCampus.fallbackDestination}</span>
             </div>
             <div className="campus-route-box">
               <strong>Walking directions</strong>
-              <p>{selectedBuilding?.name ?? selectedCampus.campusName}</p>
+              <p>{selectedBuilding?.name ?? (destinationName || selectedCampus.campusName)}</p>
               <small>Directions open Google Maps for walking. This app does not provide indoor routing.</small>
             </div>
 
             <div className="campus-room-box">
               <span className="field-label">Room number</span>
               <input value={roomNumber} onChange={(event) => updateMapParams({ room: event.target.value })} placeholder="e.g. 101" aria-label="Room number" />
-              <small className="field-hint">{selectedBuilding ? formatLocationText(campusId, selectedBuilding.id, roomNumber) : 'No room added yet — directions still lead to the building.'}</small>
+              <small className="field-hint">{selectedBuilding ? formatLocationText(campusId, selectedBuilding.id, roomNumber) : 'Room numbers are for reference. Directions use the building name or campus destination.'}</small>
             </div>
 
             <div className="campus-room-box">

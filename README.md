@@ -101,7 +101,7 @@ Current persistence is browser-local (localStorage), including:
 ## Known Limitations
 
 - No account login or cross-device cloud sync in current implementation
-- Campus building coverage is partial outside MSU in the current data set
+- Campus building directories are partial: 10 reviewed MSU pins and nine Ohio State pins; 27 other campuses provide saved campus overviews, named directions, and official maps
 - Walking directions open external Google Maps; indoor routing is not provided
 - Campus map route lines are not rendered inside Student on the Go without a verified routing backend
 
@@ -125,5 +125,7 @@ Project foundation and assets used:
 
 ## License and Author
 
-- License: MIT
+- Application code license: MIT
+- Campus overview geographic data: © OpenStreetMap contributors, ODbL 1.0; see [data sources](docs/campus-data-sources.md)
+- See the [29-campus map audit](docs/campus-map-audit.md) for coverage and verification limits
 - Author: Conway M Benson
