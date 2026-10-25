@@ -1923,3 +1923,21 @@ button {
   font-size: 0.8rem;
   font-weight: 600;
 }
+
+/* Keep appearance controls readable independently of school branding. */
+#appearance-toggle {
+  background: #f1f5f9;
+  color: #111827;
+  border: 1px solid #94a3b8;
+}
+.app-shell.dark #appearance-toggle { background: #1f2937; color: #f8fafc; }
+#appearance-toggle:hover { background: #e2e8f0; color: #111827; }
+.calendar-view-controls, .calendar-period-controls { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.calendar-view-controls button[aria-pressed="true"] { background: var(--text); color: var(--panel); }
+.calendar-jump { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.calendar-jump input { width: auto; max-width: 100%; }
+.calendar-date-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; margin-bottom: 16px; }
+.calendar-weekday { text-align: center; font-size: 0.75rem; }
+.calendar-date-grid .calendar-date-cell { min-width: 0; min-height: 62px; padding: 6px 2px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.calendar-date-cell small { font-size: 0.65rem; }
+.calendar-date-cell.is-today { outline: 2px solid var(--text); outline-offset: -2px; }

@@ -762,6 +762,25 @@ function CalendarPage({ assignment, confirmedAssignments, commitments, sessions,
   assignment: AssignmentSettings
 }) {
   const [selectedItemId, setSelectedItemId] = useState<string>('')
+  const [view, setView] = useState<'day' | 'week' | 'month'>('month')
+  const [calendarDate, setCalendarDate] = useState(() => new Date())
+  const dateKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+  const rangeStart = new Date(calendarDate.getFullYear(), calendarDate.getMonth(), calendarDate.getDate())
+  if (view === 'month') rangeStart.setDate(1)
+  if (view === 'week') rangeStart.setDate(rangeStart.getDate() - rangeStart.getDay())
+  const rangeEnd = new Date(rangeStart)
+  if (view === 'month') rangeEnd.setMonth(rangeEnd.getMonth() + 1)
+  else rangeEnd.setDate(rangeEnd.getDate() + (view === 'week' ? 7 : 1))
+  const days: Date[] = []
+  for (const day = new Date(rangeStart); day < rangeEnd; day.setDate(day.getDate() + 1)) days.push(new Date(day))
+  const moveDate = (direction: number) => {
+    const next = new Date(calendarDate)
+    if (view === 'month') { next.setDate(1); next.setMonth(next.getMonth() + direction) }
+    else next.setDate(next.getDate() + direction * (view === 'week' ? 7 : 1))
+    setCalendarDate(next)
+    setSelectedItemId('')
+  }
+
 
   const items = useMemo<CalendarItem[]>(() => {
     const includesActive = confirmedAssignments.some((item) => item.title === assignment.title && item.dueDate === assignment.dueDate && normalizeCourseName(item.courseName) === normalizeCourseName(assignment.courseName))
@@ -813,17 +832,37 @@ function CalendarPage({ assignment, confirmedAssignments, commitments, sessions,
     ? sessions.find((session) => session.id === item.id)?.status === 'completed'
     : completedItems[item.id] === true
 
-  const selectedItem = items.find((item) => item.id === selectedItemId) ?? items[0] ?? null
+  const visibleItems = items.filter((item) => item.date >= dateKey(rangeStart) && item.date < dateKey(rangeEnd))
+  const selectedItem = visibleItems.find((item) => item.id === selectedItemId) ?? visibleItems[0] ?? null
 
   return (
     <main className="page-content calendar-page">
       {cleanup}
       <section className="panel calendar-panel">
         <div className="panel-header-row"><h2>Calendar</h2></div>
+        <div className="calendar-view-controls" role="group" aria-label="Calendar view">
+          {(['day', 'week', 'month'] as const).map((mode) => <button key={mode} type="button" className="secondary-button" aria-pressed={view === mode} onClick={() => { setView(mode); setSelectedItemId('') }}>{mode[0].toUpperCase() + mode.slice(1)}</button>)}
+        </div>
+        <div className="calendar-period-controls">
+          <button type="button" className="secondary-button" aria-label={`Previous ${view}`} onClick={() => moveDate(-1)}>Previous</button>
+          <button type="button" className="secondary-button" onClick={() => { setCalendarDate(new Date()); setSelectedItemId('') }}>Today</button>
+          <button type="button" className="secondary-button" aria-label={`Next ${view}`} onClick={() => moveDate(1)}>Next</button>
+        </div>
+        <label className="calendar-jump">Go to date<input type="date" value={dateKey(calendarDate)} onChange={(event) => { if (event.target.value) { setCalendarDate(new Date(`${event.target.value}T12:00:00`)); setSelectedItemId('') } }} /></label>
+        <h3 aria-live="polite">{view === 'month' ? calendarDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }) : view === 'day' ? formatDate(dateKey(rangeStart)) : `${formatDate(dateKey(rangeStart))} – ${formatDate(dateKey(days[days.length - 1]))}`}</h3>
+        {view !== 'day' ? <div className={`calendar-date-grid ${view}`}>
+          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => <span key={day} className="calendar-weekday">{day}</span>)}
+          {view === 'month' ? Array.from({ length: rangeStart.getDay() }, (_, index) => <span key={`blank-${index}`} />) : null}
+          {days.map((day) => {
+            const key = dateKey(day)
+            const count = items.filter((item) => item.date === key).length
+            return <button type="button" key={key} className={`secondary-button calendar-date-cell${key === dateKey(new Date()) ? ' is-today' : ''}`} aria-label={`${formatDate(key)}, ${count} items. Open day`} onClick={() => { setCalendarDate(day); setView('day'); setSelectedItemId('') }}><strong>{day.getDate()}</strong><small>{count ? `${count} ${count === 1 ? 'item' : 'items'}` : '—'}</small></button>
+          })}
+        </div> : null}
         <p className="workflow-help">See your deadlines, busy times, and planned study sessions. Check an item to mark it done; uncheck to undo. Select its title to see details. To change your plan, edit your assignment or busy times.</p>
-        {items.length === 0 ? <p className="empty-state">Your calendar is empty. Add an assignment or busy time when you are ready.</p> : null}
+        {visibleItems.length === 0 ? <p className="empty-state">No items scheduled for this {view}.</p> : null}
         <ul className="calendar-detail-list">
-          {items.length === 0 ? <li className="empty-state">No items scheduled yet.</li> : items.map((item) => (
+          {visibleItems.map((item) => (
             <li key={item.id} className={`calendar-detail-item${selectedItemId === item.id ? ' selected' : ''}${isComplete(item) ? ' completed' : ''}`}>
               <label className="calendar-check-target">
                 <input
@@ -1053,7 +1092,7 @@ function CampusMapPage({
   const [locationMessage, setLocationMessage] = useState('')
   const [geocodedCenter, setGeocodedCenter] = useState<[number, number] | null>(null)
   const [customDestination, setCustomDestination] = useState('')
-  const [touchInteractionEnabled, setTouchInteractionEnabled] = useState(false)
+  const [touchInteractionEnabled, setTouchInteractionEnabled] = useState(true)
 
   const requestedBuildingId = searchParams.get('building') ?? ''
   const roomNumber = searchParams.get('room') ?? ''
@@ -1235,7 +1274,7 @@ function CampusMapPage({
                 const nextBuildingId = findFirstMatchingBuildingId(nextSearch, showMyClasses)
                 updateMapParams({ buildingId: nextBuildingId })
               }}
-              placeholder="Search by building or address"
+              placeholder="Search listed buildings or addresses"
             />
           </label>
           <button
@@ -1335,7 +1374,7 @@ function CampusMapPage({
               )
             })
           ) : (
-            <div className="empty-state">No map matches found. Clear filters or open the official campus map.</div>
+            <div className="empty-state">{allBuildings.length === 0 ? 'The campus map is available, but building listings have not been added yet. Explore by dragging the map, search an address below, or open the official campus map.' : 'No buildings match these filters. Clear filters or open the official campus map.'}</div>
           )}
         </div>
       </section>
@@ -1446,6 +1485,7 @@ function SettingsPage({
             ))}
           </select>
 
+          <p className="field-hint campus-selected-name">{collegeCampuses.filter((campus) => campus.id === selectedCampusId).map((campus) => getCampusLabel(campus)).join('')}</p>
           <label className="field-label" htmlFor="appearance-toggle">Appearance</label>
           <button id="appearance-toggle" type="button" className="secondary-button" onClick={() => setIsDark((current) => !current)}>
             {isDark ? 'Switch to light mode' : 'Switch to dark mode'}
