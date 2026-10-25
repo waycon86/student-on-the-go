@@ -7,7 +7,6 @@ import {
   buildMilestones,
   buildMultiAssignmentPlan,
   buildStudyPlan,
-  MILESTONE_ORDER,
   rescheduleMissedSessions,
   type AssignmentSettings,
   type Commitment,
@@ -522,42 +521,39 @@ function TodayPage(props: PlannerProps) {
 }
 
 function PlannerPage(props: PlannerProps) {
-  const { assignment, workTotalValid, combinedPlan, milestones, unscheduledMinutes, updateWorkField, workInput, setAssignment, toggleStudyDay } = props
+  const { assignment, workTotalValid, plan, milestones, unscheduledMinutes, updateWorkField, workInput, setAssignment, toggleStudyDay, sessions } = props
+  const previewRef = useRef<HTMLElement>(null)
+  const validSettings = Boolean(assignment.title.trim() && /^\d{4}-\d{2}-\d{2}$/.test(assignment.dueDate) && workTotalValid && assignment.sessionMinutes >= 15 && assignment.studyDays.length && assignment.studyStart < assignment.studyEnd)
+  const safeDeadline = new Date(`${assignment.dueDate}T23:59:59`)
+  safeDeadline.setMinutes(safeDeadline.getMinutes() - assignment.bufferMinutes)
+  const dateTime = (value: string | Date) => new Date(value).toLocaleString(undefined, { month: 'short', day: 'numeric', weekday: 'short', hour: 'numeric', minute: '2-digit' })
+  const firstSession = sessions[0]
+  const lastSession = sessions[sessions.length - 1]
 
   return (
-    <main className="page-content">
+    <main className="page-content intuitive-planner">
       <section className="panel">
-        <div className="panel-header-row">
-          <div>
-            <p className="eyebrow">Planner</p>
-            <h2>Study plan</h2>
-          </div>
-        </div>
-
-        <div className="summary-grid">
-          <div className="summary-card"><span>Planned</span><strong>{formatMinutes(combinedPlan.plannedMinutes)}</strong></div>
-          <div className="summary-card"><span>Completed</span><strong>{formatMinutes(props.completedMinutes)}</strong></div>
-          <div className="summary-card warning"><span>Time that won’t fit</span><strong>{formatMinutes(Math.max(combinedPlan.remainingWorkMinutes, unscheduledMinutes))}</strong></div>
-        </div>
-
-        <div className="milestone-list">
-          {milestones.map((milestone, index) => (
-            <div key={milestone.name} className="milestone-card">
-              <span className="milestone-index">{index + 1}</span>
-              <div><strong>{milestone.name}</strong><p>{MILESTONE_ORDER[index]} · {formatMinutes(milestone.minutes)}</p></div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="panel">
-        <div className="panel-header-row"><div><p className="eyebrow">Assignment settings</p><h2>Plan your assignment</h2></div></div>
+        <p className="eyebrow">Planner</p>
+        <h2>Start with your due date</h2>
+        <p>Tell us what is due and when you can study. We work backward to find time around your classes and busy times.</p>
+        {props.confirmedAssignments.length > 0 ? <label>Load an imported assignment
+          <select value="" onChange={(event) => {
+            if (event.target.value === '') return
+            const selected = props.confirmedAssignments[Number(event.target.value)]
+            setAssignment({ ...selected })
+            props.setWorkInput({ hours: Math.floor(selected.totalWorkMinutes / 60), minutes: selected.totalWorkMinutes % 60 })
+          }}>
+            <option value="">Choose an assignment…</option>
+            {props.confirmedAssignments.map((item, index) => <option key={index} value={index}>{item.courseName ? `${item.courseName} · ` : ''}{item.title} · {formatDate(item.dueDate)}</option>)}
+          </select>
+        </label> : <NavLink to="/syllabus">Import assignments from a syllabus</NavLink>}
+        <p className="workflow-help">Your current plan updates as you change these settings. Imported assignment records are kept separately.</p>
         <label>Assignment title<input value={assignment.title} onChange={(event) => setAssignment((current) => ({ ...current, title: event.target.value }))} /></label>
         <label>Class name (optional)<input value={assignment.courseName ?? ''} onChange={(event) => setAssignment((current) => ({ ...current, courseName: event.target.value }))} placeholder="e.g. BIO-101" /></label>
-        <label>Due date<input type="date" value={assignment.dueDate} onChange={(event) => setAssignment((current) => ({ ...current, dueDate: event.target.value }))} /></label>
+        <h3>1. Set your deadline</h3><label>Due date<input type="date" value={assignment.dueDate} onChange={(event) => setAssignment((current) => ({ ...current, dueDate: event.target.value }))} /></label>
 
         <div className="work-input-group">
-          <span className="field-label">Estimated total work</span>
+          <h3>2. Estimate the work</h3><p className="workflow-help">How much time will this assignment take altogether? An estimate is fine.</p><span className="field-label">Total time needed</span>
           <div className="work-input-row">
             <label>Hours<input type="number" min={0} step={1} value={workInput.hours} onChange={(event) => updateWorkField('hours', event.target.value)} /></label>
             <label>Minutes<input type="number" min={0} max={59} step={1} value={workInput.minutes} onChange={(event) => updateWorkField('minutes', event.target.value)} /></label>
@@ -565,9 +561,14 @@ function PlannerPage(props: PlannerProps) {
           {!workTotalValid ? <div className="validation-message">Enter a total work estimate greater than zero before planning.</div> : null}
         </div>
 
-        <label>Study session length (minutes)<input type="number" min={15} step={15} value={assignment.sessionMinutes} onChange={(event) => setAssignment((current) => ({ ...current, sessionMinutes: Number(event.target.value) || 45 }))} /></label>
-        <label>Finish this many minutes before the deadline<input type="number" min={0} step={15} value={assignment.bufferMinutes} onChange={(event) => setAssignment((current) => ({ ...current, bufferMinutes: Number(event.target.value) || 0 }))} /></label>
+        <h3>3. Choose when you can study</h3><label>Minutes per study session<input type="number" min={15} step={15} value={assignment.sessionMinutes} onChange={(event) => setAssignment((current) => ({ ...current, sessionMinutes: Number(event.target.value) || 45 }))} /></label>
+        <label>Finish early by (minutes)<input type="number" min={0} step={15} value={assignment.bufferMinutes} onChange={(event) => setAssignment((current) => ({ ...current, bufferMinutes: Number(event.target.value) || 0 }))} /></label>
 
+        <p className="workflow-help">Want a day to review before submitting?</p>
+        <div className="planner-buffer-options" role="group" aria-label="Finish early presets">
+          {[{ label: 'On the due date', minutes: 0 }, { label: '1 day early', minutes: 1440 }, { label: '2 days early', minutes: 2880 }].map((option) => <button key={option.minutes} type="button" className="secondary-button" aria-pressed={assignment.bufferMinutes === option.minutes} onClick={() => setAssignment((current) => ({ ...current, bufferMinutes: option.minutes }))}>{option.label}</button>)}
+        </div>
+        <p className="field-label">Which days can you study?</p>
         <div className="study-days">
           {daysOfWeek.map((day) => (
             <button key={day} type="button" aria-pressed={assignment.studyDays.includes(day)} className={assignment.studyDays.includes(day) ? 'day active' : 'day'} onClick={() => toggleStudyDay(day)}>{assignment.studyDays.includes(day) ? <span className="day-check" aria-hidden="true">✓</span> : null}{day}</button>
@@ -579,7 +580,38 @@ function PlannerPage(props: PlannerProps) {
           <label>Study ends<input type="time" value={assignment.studyEnd} onChange={(event) => setAssignment((current) => ({ ...current, studyEnd: event.target.value }))} /></label>
         </div>
 
-        <AssignmentLocationFields assignment={assignment} setAssignment={setAssignment} selectedCampusId={props.selectedCampusId} />
+
+        <details className="planner-location"><summary>Add a campus location (optional)</summary>
+          <AssignmentLocationFields assignment={assignment} setAssignment={setAssignment} selectedCampusId={props.selectedCampusId} />
+        </details>
+        <div className="planner-review-action"><button type="button" onClick={() => previewRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>See my study plan</button></div>
+        <NavLink to="/schedule">Add or change classes and busy times</NavLink>
+      </section>
+
+      <section className="panel planner-preview" ref={previewRef} tabIndex={-1}>
+        <p className="eyebrow">Your plan, working backward</p>
+        <h2>{assignment.title.trim() || 'Your assignment'}</h2>
+        {!validSettings ? <p className="validation-message" role="status">Enter an assignment title, due date, and work estimate. Choose at least one study day, a session length of 15 minutes or more, and an end time after your start time.</p> : <>
+          <ol className="planner-deadline-path">
+            <li><span>Due</span><strong>{formatDate(assignment.dueDate)} · 11:59 PM</strong></li>
+            <li><span>Finish by</span><strong>{dateTime(safeDeadline)}</strong></li>
+            <li><span>{unscheduledMinutes > 0 ? 'First available session' : 'Start studying'}</span><strong>{firstSession ? dateTime(firstSession.start) : 'No sessions fit yet'}</strong></li>
+          </ol>
+          <p className="workflow-help">We fill your latest available study times first, working back from the finish-by time. Sessions may fall on the same day. Classes and busy times are protected.</p>
+          {safeDeadline < props.now ? <p className="validation-message" role="status">Your finish-by time has already passed. Choose a future due date or reduce the finish-early buffer.</p> : null}
+          {unscheduledMinutes > 0 ? <div className="validation-message" role="status"><strong>{formatMinutes(unscheduledMinutes)} still needs time.</strong> Add study days, widen your study hours, shorten your sessions, or reduce the finish-early buffer.</div> : <p className="status-message success" role="status">Your {formatMinutes(props.totalWorkMinutes)} estimate fits in {sessions.length} study session{sessions.length === 1 ? '' : 's'}.</p>}
+          <h3>Your study sessions, in order</h3>
+          <ol className="planner-session-timeline">
+            {sessions.map((session, index) => <li key={session.id}>
+              <div><strong>Session {index + 1}{index === 0 ? ' · Start here' : ''}</strong><span>{dateTime(session.start)} – {formatTime(new Date(session.end))}</span><small>{formatMinutes(Math.round((new Date(session.end).getTime() - new Date(session.start).getTime()) / 60000))}</small></div>
+              <label className="planner-session-check"><input type="checkbox" checked={session.status === 'completed'} onChange={(event) => props.updateSessionStatus(session.id, event.target.checked ? 'completed' : 'planned')} />Done</label>
+            </li>)}
+          </ol>
+          {lastSession ? <p>Last scheduled session ends {dateTime(lastSession.end)}.</p> : <p>No study sessions fit. Adjust your availability above.</p>}
+          <p className="workflow-help">Scheduled: {formatMinutes(plan.plannedMinutes)} · Completed: {formatMinutes(props.completedMinutes)}</p>
+          <div className="planner-preview-actions"><NavLink className="primary-link-button" to="/calendar">Open calendar</NavLink><button type="button" className="secondary-button" onClick={props.rescheduleUnfinished}>Reschedule unfinished work</button></div>
+          <details><summary>Suggested work breakdown</summary><p>These are time estimates for organizing the assignment, rather than dated milestones.</p><ul>{milestones.map((milestone) => <li key={milestone.name}>{milestone.name}: {formatMinutes(milestone.minutes)}</li>)}</ul></details>
+        </>}
       </section>
     </main>
   )
