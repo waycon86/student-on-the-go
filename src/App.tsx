@@ -45,6 +45,8 @@ const DARK_MODE_STORAGE_KEY = 'student-on-the-go-dark-mode'
 const ASSIGNMENT_STORAGE_KEY = 'student-on-the-go-assignment'
 const CONFIRMED_ASSIGNMENTS_STORAGE_KEY = 'student-on-the-go-confirmed-assignments'
 const COMMITMENTS_STORAGE_KEY = 'student-on-the-go-commitments'
+const CALENDAR_COMPLETION_STORAGE_KEY = 'student-on-the-go-calendar-completion'
+const SESSION_STATUS_STORAGE_KEY = 'student-on-the-go-session-status'
 const SELECTED_CAMPUS_STORAGE_KEY = 'student-on-the-go-selected-campus'
 
 const daysOfWeek = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const
@@ -750,11 +752,13 @@ function SyllabusPage(props: PlannerProps) {
   )
 }
 
-function CalendarPage({ assignment, confirmedAssignments, commitments, sessions, cleanup }: {
+function CalendarPage({ assignment, confirmedAssignments, commitments, sessions, cleanup, completedItems, onToggleComplete }: {
   confirmedAssignments: AssignmentSettings[]
   commitments: Commitment[]
   sessions: StudySession[]
   cleanup: React.ReactNode
+  completedItems: Record<string, boolean>
+  onToggleComplete: (item: CalendarItem, completed: boolean) => void
   assignment: AssignmentSettings
 }) {
   const [selectedItemId, setSelectedItemId] = useState<string>('')
@@ -762,8 +766,8 @@ function CalendarPage({ assignment, confirmedAssignments, commitments, sessions,
   const items = useMemo<CalendarItem[]>(() => {
     const includesActive = confirmedAssignments.some((item) => item.title === assignment.title && item.dueDate === assignment.dueDate && normalizeCourseName(item.courseName) === normalizeCourseName(assignment.courseName))
     const deadlines = hasActiveAssignment(assignment) && !includesActive ? [...confirmedAssignments, assignment] : confirmedAssignments
-    const assignmentItems = deadlines.map((assignment, index) => ({
-      id: `assignment-${index}-${assignment.title}-${assignment.dueDate}`,
+    const assignmentItems = deadlines.map((assignment) => ({
+      id: JSON.stringify(['assignment', normalizeCourseName(assignment.courseName), assignment.title, assignment.dueDate]),
       title: assignment.title,
       date: assignment.dueDate,
       kind: 'assignment' as const,
@@ -805,6 +809,10 @@ function CalendarPage({ assignment, confirmedAssignments, commitments, sessions,
     })
   }, [assignment, commitments, confirmedAssignments, sessions])
 
+  const isComplete = (item: CalendarItem) => item.kind === 'study'
+    ? sessions.find((session) => session.id === item.id)?.status === 'completed'
+    : completedItems[item.id] === true
+
   const selectedItem = items.find((item) => item.id === selectedItemId) ?? items[0] ?? null
 
   return (
@@ -812,16 +820,25 @@ function CalendarPage({ assignment, confirmedAssignments, commitments, sessions,
       {cleanup}
       <section className="panel calendar-panel">
         <div className="panel-header-row"><h2>Calendar</h2></div>
-        <p className="workflow-help">See your deadlines, busy times, and planned study sessions. Select an item to see its details. To change your plan, edit your assignment or busy times.</p>
+        <p className="workflow-help">See your deadlines, busy times, and planned study sessions. Check an item to mark it done; uncheck to undo. Select its title to see details. To change your plan, edit your assignment or busy times.</p>
         {items.length === 0 ? <p className="empty-state">Your calendar is empty. Add an assignment or busy time when you are ready.</p> : null}
         <ul className="calendar-detail-list">
           {items.length === 0 ? <li className="empty-state">No items scheduled yet.</li> : items.map((item) => (
-            <li key={item.id} className={selectedItemId === item.id ? 'calendar-detail-item selected' : 'calendar-detail-item'}>
+            <li key={item.id} className={`calendar-detail-item${selectedItemId === item.id ? ' selected' : ''}${isComplete(item) ? ' completed' : ''}`}>
+              <label className="calendar-check-target">
+                <input
+                  type="checkbox"
+                  checked={isComplete(item)}
+                  onChange={(event) => onToggleComplete(item, event.target.checked)}
+                  aria-label={`Mark ${item.title} (${formatDate(item.date)}${item.start ? `, ${formatTime(new Date(item.start))}` : ''}) ${isComplete(item) ? 'incomplete' : 'complete'}`}
+                />
+              </label>
               <button type="button" className="detail-item-button" onClick={() => setSelectedItemId(item.id)}>
                 <span className="calendar-item-time">{item.start ? formatTime(new Date(item.start)) : 'All day'}</span>
                 <span className="detail-item-main">
                   <span className={`calendar-pill ${item.kind}`}>{item.kind === 'assignment' ? 'Deadline' : item.kind === 'study' ? 'Study' : 'Commitment'}</span>
                   <strong>{item.title}</strong>
+                  {isComplete(item) ? <span className="calendar-completed-label">Completed</span> : null}
                   <small>{item.courseName ? `${item.courseName} · ` : ''}{formatDate(item.date)}</small>
                 </span>
               </button>
@@ -1510,7 +1527,16 @@ function AppContent() {
   const mountedSettingsRef = useRef(false)
   const [now] = useState(() => new Date())
   const [workInput, setWorkInput] = useState<WorkInput>(() => hoursAndMinutesFromTotal(assignment.totalWorkMinutes))
-  const [sessionStatusMap, setSessionStatusMap] = useState<Record<string, StudySession['status']>>({})
+  const [sessionStatusMap, setSessionStatusMap] = useState<Record<string, StudySession['status']>>(() => readStoredJson(SESSION_STATUS_STORAGE_KEY, {}))
+  const [completedCalendarItems, setCompletedCalendarItems] = useState<Record<string, boolean>>(() => readStoredJson(CALENDAR_COMPLETION_STORAGE_KEY, {}))
+
+  useEffect(() => {
+    window.localStorage.setItem(CALENDAR_COMPLETION_STORAGE_KEY, JSON.stringify(completedCalendarItems))
+  }, [completedCalendarItems])
+
+  useEffect(() => {
+    window.localStorage.setItem(SESSION_STATUS_STORAGE_KEY, JSON.stringify(sessionStatusMap))
+  }, [sessionStatusMap])
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const latestExtractedTextRef = useRef('')
   const latestExtractedKindRef = useRef<'txt' | 'pdf' | null>(null)
@@ -1936,7 +1962,10 @@ function AppContent() {
           <Route path="/planner" element={<PlannerPage {...pageProps} />} />
           <Route path="/assignments" element={<AssignmentsPage {...pageProps} />} />
           <Route path="/syllabus" element={<SyllabusPage {...pageProps} />} />
-          <Route path="/calendar" element={<CalendarPage assignment={assignment} confirmedAssignments={confirmedAssignments} commitments={commitments} sessions={sessions} cleanup={<CalendarCleanup
+          <Route path="/calendar" element={<CalendarPage assignment={assignment} confirmedAssignments={confirmedAssignments} commitments={commitments} sessions={sessions} completedItems={completedCalendarItems} onToggleComplete={(item, completed) => {
+            if (item.kind === 'study') updateSessionStatus(item.id, completed ? 'completed' : 'planned')
+            else setCompletedCalendarItems((current) => ({ ...current, [item.id]: completed }))
+          }} cleanup={<CalendarCleanup
             assignment={assignment}
             assignments={confirmedAssignments}
             commitments={commitments}

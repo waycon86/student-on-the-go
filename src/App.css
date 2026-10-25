@@ -1868,3 +1868,58 @@ button {
   overflow-y: auto;
   padding-inline-start: 1.25rem;
 }
+
+/* Calendar checkboxes replace list bullets and remain separate from detail buttons. */
+.calendar-detail-list {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.calendar-detail-list .calendar-detail-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  min-width: 0;
+}
+
+.calendar-check-target {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 44px;
+  min-height: 44px;
+  cursor: pointer;
+  margin: 0;
+}
+
+.calendar-check-target input[type="checkbox"] {
+  appearance: auto;
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  accent-color: var(--theme-primary);
+  cursor: pointer;
+}
+
+.calendar-check-target input:focus-visible {
+  outline: 3px solid var(--theme-secondary);
+  outline-offset: 3px;
+}
+
+.calendar-detail-item .detail-item-button {
+  flex: 1;
+  min-width: 0;
+}
+
+.calendar-detail-item.completed .detail-item-main strong {
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+
+.calendar-completed-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
