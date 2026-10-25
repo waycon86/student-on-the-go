@@ -548,12 +548,15 @@ function PlannerPage(props: PlannerProps) {
           </select>
         </label> : <NavLink to="/syllabus">Import assignments from a syllabus</NavLink>}
         <p className="workflow-help">Your current plan updates as you change these settings. Imported assignment records are kept separately.</p>
+        <div className="planner-setup-grid">
+        <fieldset className="planner-step"><legend>1. Assignment &amp; deadline</legend>
         <label>Assignment title<input value={assignment.title} onChange={(event) => setAssignment((current) => ({ ...current, title: event.target.value }))} /></label>
         <label>Class name (optional)<input value={assignment.courseName ?? ''} onChange={(event) => setAssignment((current) => ({ ...current, courseName: event.target.value }))} placeholder="e.g. BIO-101" /></label>
-        <h3>1. Set your deadline</h3><label>Due date<input type="date" value={assignment.dueDate} onChange={(event) => setAssignment((current) => ({ ...current, dueDate: event.target.value }))} /></label>
+        <label>Due date<input type="date" value={assignment.dueDate} onChange={(event) => setAssignment((current) => ({ ...current, dueDate: event.target.value }))} /></label>
 
-        <div className="work-input-group">
-          <h3>2. Estimate the work</h3><p className="workflow-help">How much time will this assignment take altogether? An estimate is fine.</p><span className="field-label">Total time needed</span>
+        </fieldset>
+        <fieldset className="planner-step"><legend>2. Time needed</legend>
+        <div className="work-input-group"><p className="workflow-help">How much time will this assignment take altogether? An estimate is fine.</p><span className="field-label">Total time needed</span>
           <div className="work-input-row">
             <label>Hours<input type="number" min={0} step={1} value={workInput.hours} onChange={(event) => updateWorkField('hours', event.target.value)} /></label>
             <label>Minutes<input type="number" min={0} max={59} step={1} value={workInput.minutes} onChange={(event) => updateWorkField('minutes', event.target.value)} /></label>
@@ -561,13 +564,16 @@ function PlannerPage(props: PlannerProps) {
           {!workTotalValid ? <div className="validation-message">Enter a total work estimate greater than zero before planning.</div> : null}
         </div>
 
-        <h3>3. Choose when you can study</h3><label>Minutes per study session<input type="number" min={15} step={15} value={assignment.sessionMinutes} onChange={(event) => setAssignment((current) => ({ ...current, sessionMinutes: Number(event.target.value) || 45 }))} /></label>
-        <label>Finish early by (minutes)<input type="number" min={0} step={15} value={assignment.bufferMinutes} onChange={(event) => setAssignment((current) => ({ ...current, bufferMinutes: Number(event.target.value) || 0 }))} /></label>
+<label>Minutes per study session<input type="number" min={15} step={15} value={assignment.sessionMinutes} onChange={(event) => setAssignment((current) => ({ ...current, sessionMinutes: Number(event.target.value) || 45 }))} /></label>
 
-        <p className="workflow-help">Want a day to review before submitting?</p>
+
+        <p className="field-label">When should the work be finished?</p>
         <div className="planner-buffer-options" role="group" aria-label="Finish early presets">
           {[{ label: 'On the due date', minutes: 0 }, { label: '1 day early', minutes: 1440 }, { label: '2 days early', minutes: 2880 }].map((option) => <button key={option.minutes} type="button" className="secondary-button" aria-pressed={assignment.bufferMinutes === option.minutes} onClick={() => setAssignment((current) => ({ ...current, bufferMinutes: option.minutes }))}>{option.label}</button>)}
         </div>
+        <details className="planner-custom-buffer" open={![0, 1440, 2880].includes(assignment.bufferMinutes)}><summary>Custom finish-early time</summary><label>Finish early by (minutes)<input type="number" min={0} step={15} value={assignment.bufferMinutes} onChange={(event) => setAssignment((current) => ({ ...current, bufferMinutes: Number(event.target.value) || 0 }))} /></label></details>
+        </fieldset>
+        <fieldset className="planner-step"><legend>3. Your availability</legend>
         <p className="field-label">Which days can you study?</p>
         <div className="study-days">
           {daysOfWeek.map((day) => (
@@ -581,11 +587,14 @@ function PlannerPage(props: PlannerProps) {
         </div>
 
 
+        <p className="workflow-help">Study sessions will avoid the busy times you have added.</p>
+        <NavLink to="/schedule">Edit classes and busy times</NavLink>
+        </fieldset>
+        </div>
         <details className="planner-location"><summary>Add a campus location (optional)</summary>
           <AssignmentLocationFields assignment={assignment} setAssignment={setAssignment} selectedCampusId={props.selectedCampusId} />
         </details>
         <div className="planner-review-action"><button type="button" onClick={() => previewRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>See my study plan</button></div>
-        <NavLink to="/schedule">Add or change classes and busy times</NavLink>
       </section>
 
       <section className="panel planner-preview" ref={previewRef} tabIndex={-1}>
@@ -794,6 +803,14 @@ function CalendarPage({ assignment, confirmedAssignments, commitments, sessions,
   assignment: AssignmentSettings
 }) {
   const [selectedItemId, setSelectedItemId] = useState<string>('')
+  const detailDialog = useRef<HTMLDialogElement>(null)
+  const closeDetail = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (selectedItemId && !detailDialog.current?.open) {
+      detailDialog.current?.showModal()
+      closeDetail.current?.focus()
+    }
+  }, [selectedItemId])
   const [view, setView] = useState<'day' | 'week' | 'month'>('month')
   const [calendarDate, setCalendarDate] = useState(() => new Date())
   const dateKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
@@ -844,7 +861,7 @@ function CalendarPage({ assignment, confirmedAssignments, commitments, sessions,
     const studyItems = sessions.map((session) => ({
       id: session.id,
       title: formatSessionAssignmentTitle(session.assignmentId),
-      date: session.start.slice(0, 10),
+      date: `${new Date(session.start).getFullYear()}-${String(new Date(session.start).getMonth() + 1).padStart(2, '0')}-${String(new Date(session.start).getDate()).padStart(2, '0')}`,
       kind: 'study' as const,
       courseName: assignment.courseName,
       start: session.start,
@@ -865,13 +882,13 @@ function CalendarPage({ assignment, confirmedAssignments, commitments, sessions,
     : completedItems[item.id] === true
 
   const visibleItems = items.filter((item) => item.date >= dateKey(rangeStart) && item.date < dateKey(rangeEnd))
-  const selectedItem = visibleItems.find((item) => item.id === selectedItemId) ?? visibleItems[0] ?? null
+  const selectedItem = visibleItems.find((item) => item.id === selectedItemId) ?? null
 
   return (
     <main className="page-content calendar-page">
-      {cleanup}
       <section className="panel calendar-panel">
-        <div className="panel-header-row"><h2>Calendar</h2></div>
+        <div className="calendar-toolbar">
+        <div><p className="eyebrow">Your schedule</p><h2 aria-live="polite">{view === 'month' ? calendarDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }) : view === 'day' ? formatDate(dateKey(rangeStart)) : `${formatDate(dateKey(rangeStart))} – ${formatDate(dateKey(days[days.length - 1]))}`}</h2></div>
         <div className="calendar-view-controls" role="group" aria-label="Calendar view">
           {(['day', 'week', 'month'] as const).map((mode) => <button key={mode} type="button" className="secondary-button" aria-pressed={view === mode} onClick={() => { setView(mode); setSelectedItemId('') }}>{mode[0].toUpperCase() + mode.slice(1)}</button>)}
         </div>
@@ -881,19 +898,30 @@ function CalendarPage({ assignment, confirmedAssignments, commitments, sessions,
           <button type="button" className="secondary-button" aria-label={`Next ${view}`} onClick={() => moveDate(1)}>Next</button>
         </div>
         <label className="calendar-jump">Go to date<input type="date" value={dateKey(calendarDate)} onChange={(event) => { if (event.target.value) { setCalendarDate(new Date(`${event.target.value}T12:00:00`)); setSelectedItemId('') } }} /></label>
-        <h3 aria-live="polite">{view === 'month' ? calendarDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }) : view === 'day' ? formatDate(dateKey(rangeStart)) : `${formatDate(dateKey(rangeStart))} – ${formatDate(dateKey(days[days.length - 1]))}`}</h3>
+        </div>
+        <p className="workflow-help">Select an event for details or to mark it done. Select a date to open its day.</p>
+        <div className="calendar-legend" aria-label="Event types"><span className="calendar-event-label assignment">Deadline</span><span className="calendar-event-label study">Study</span><span className="calendar-event-label commitment">Busy time</span></div>
         {view !== 'day' ? <div className={`calendar-date-grid ${view}`}>
-          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => <span key={day} className="calendar-weekday">{day}</span>)}
+          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => <span key={day} className="calendar-weekday" aria-hidden="true">{day}</span>)}
           {view === 'month' ? Array.from({ length: rangeStart.getDay() }, (_, index) => <span key={`blank-${index}`} />) : null}
           {days.map((day) => {
             const key = dateKey(day)
-            const count = items.filter((item) => item.date === key).length
-            return <button type="button" key={key} className={`secondary-button calendar-date-cell${key === dateKey(new Date()) ? ' is-today' : ''}`} aria-label={`${formatDate(key)}, ${count} items. Open day`} onClick={() => { setCalendarDate(day); setView('day'); setSelectedItemId('') }}><strong>{day.getDate()}</strong><small>{count ? `${count} ${count === 1 ? 'item' : 'items'}` : '—'}</small></button>
+            const dayItems = items.filter((item) => item.date === key)
+            const shownItems = view === 'month' ? dayItems.slice(0, 2) : dayItems
+            return <div key={key} className={`calendar-date-cell${key === dateKey(new Date()) ? ' is-today' : ''}`}>
+              <button type="button" className="calendar-cell-date" aria-label={`${formatDate(key)}, ${dayItems.length} items. Open day`} onClick={() => { setCalendarDate(day); setView('day'); setSelectedItemId('') }}><span className="calendar-cell-weekday">{day.toLocaleDateString(undefined, { weekday: 'short' })} </span>{day.getDate()}</button>
+              {view === 'month' && dayItems.length > 0 ? <button type="button" className="calendar-mobile-count" aria-label={`${dayItems.length} events on ${formatDate(key)}. Open day`} onClick={() => { setCalendarDate(day); setView('day') }}>{dayItems.length} <span>{dayItems.length === 1 ? 'event' : 'events'}</span></button> : null}
+              {shownItems.map((item) => <button key={item.id} type="button" className={`calendar-cell-event ${item.kind}${isComplete(item) ? ' completed' : ''}`} onClick={() => setSelectedItemId(item.id)} title={`${item.title} · ${item.start ? formatTime(new Date(item.start)) : 'Due'}${isComplete(item) ? ' · Completed' : ''}`}>
+                <span>{item.start ? formatTime(new Date(item.start)) : 'Due'}{isComplete(item) ? ' · Done' : ''}</span><strong>{item.title}</strong>
+              </button>)}
+              {view === 'month' && dayItems.length > 2 ? <button type="button" className="calendar-more-events" onClick={() => { setCalendarDate(day); setView('day') }}>+{dayItems.length - 2} more</button> : null}
+              {view === 'week' && dayItems.length === 0 ? <small className="calendar-cell-empty">No events</small> : null}
+            </div>
           })}
         </div> : null}
-        <p className="workflow-help">See your deadlines, busy times, and planned study sessions. Check an item to mark it done; uncheck to undo. Select its title to see details. To change your plan, edit your assignment or busy times.</p>
+
         {visibleItems.length === 0 ? <p className="empty-state">No items scheduled for this {view}.</p> : null}
-        <ul className="calendar-detail-list">
+        {view === 'day' ? <ul className="calendar-detail-list">
           {visibleItems.map((item) => (
             <li key={item.id} className={`calendar-detail-item${selectedItemId === item.id ? ' selected' : ''}${isComplete(item) ? ' completed' : ''}`}>
               <label className="calendar-check-target">
@@ -915,12 +943,13 @@ function CalendarPage({ assignment, confirmedAssignments, commitments, sessions,
               </button>
             </li>
           ))}
-        </ul>
+        </ul> : null}
       </section>
-
-      <section className="panel calendar-detail-panel">
+      <details className="calendar-manage"><summary>Manage calendar &amp; clear a class</summary>{cleanup}</details>
+      <dialog ref={detailDialog} className="calendar-event-dialog" aria-labelledby="calendar-event-title" onCancel={() => setSelectedItemId('')} onClose={() => setSelectedItemId('')}>
         {selectedItem ? (
           <>
+            <div className="calendar-dialog-heading"><h2 id="calendar-event-title">Event details</h2><button type="button" className="secondary-button" ref={closeDetail} onClick={() => detailDialog.current?.close()}>Close</button></div>
             <div className="calendar-detail-head">
               <span className={`calendar-pill ${selectedItem.kind}`}>{selectedItem.kind === 'assignment' ? 'Deadline' : selectedItem.kind === 'study' ? 'Study' : 'Commitment'}</span>
               <strong>{selectedItem.title}</strong>
@@ -930,14 +959,15 @@ function CalendarPage({ assignment, confirmedAssignments, commitments, sessions,
               {selectedItem.start ? <span>{formatTime(new Date(selectedItem.start))}{selectedItem.end ? `–${formatTime(new Date(selectedItem.end))}` : ''}</span> : null}
               {formatLocationText(selectedItem.campusId, selectedItem.campusBuildingId, selectedItem.roomNumber) ? <span>{formatLocationText(selectedItem.campusId, selectedItem.campusBuildingId, selectedItem.roomNumber)}</span> : null}
             </div>
+            <label className="planner-session-check"><input type="checkbox" checked={isComplete(selectedItem)} onChange={(event) => onToggleComplete(selectedItem, event.target.checked)} />Completed</label>
             {getLocationSummary(selectedItem.campusId, selectedItem.campusBuildingId, selectedItem.roomNumber) ? (
               <div className="calendar-detail-actions">
                 <a className="primary-link-button" href={buildCampusMapPath(selectedItem.campusId ?? DEFAULT_CAMPUS_ID, selectedItem.campusBuildingId, selectedItem.roomNumber)}>Find my class</a>
               </div>
             ) : null}
           </>
-        ) : <div className="empty-state">Select an item to view details.</div>}
-      </section>
+        ) : null}
+      </dialog>
     </main>
   )
 }
