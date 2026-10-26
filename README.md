@@ -125,9 +125,9 @@ Project foundation and assets used:
 
 ## Clearing a calendar or dropping a class
 
-Open **Calendar → Manage calendar**. Choose a class and select **Clear one class**, or select **Clear all** to start over. Review the assignments, linked busy times, and study blocks, then confirm. Cancel or Escape leaves your calendar unchanged. Clearing cannot be undone; college and appearance settings remain saved.
+Open **Settings → Homework and calendar**. Choose a class and select **Clear one class**, or select **Clear all** to start over. Review the assignments, linked busy times, and study blocks, then confirm. Cancel or Escape leaves your calendar unchanged. Clearing cannot be undone; college and appearance settings remain saved. The Calendar page also links to Settings.
 
-Use the optional **Class name** field on assignments, syllabus review entries, and busy times. Existing items can be labelled under **Add or edit class labels** on the Calendar page. Matching ignores capitalization and extra spaces but requires the same class name; unassigned items are separate and can be cleared explicitly. A class is never inferred from a title or campus building. Clearing one class preserves other saved items, although remaining study blocks can move into newly available time. Syllabus review drafts remain available for an explicit later import.
+Use the optional **Class name** field on assignments, syllabus review entries, and busy times. Existing items can be labelled under **Add or edit class labels** in Settings. Matching ignores capitalization and extra spaces but requires the same class name; unassigned items are separate and can be cleared explicitly. A class is never inferred from a title or campus building. Clearing one class preserves other saved items, although remaining study blocks can move into newly available time. Syllabus review drafts remain available for an explicit later import.
 
 Empty calendars stay empty after reloading; sample assignments are not restored. Calendar data is saved in the current browser.
 
