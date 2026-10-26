@@ -54,6 +54,13 @@ function normalizeTextForAssignmentParsing(text: string): string {
     .trim()
 }
 
+function courseHeader(line: string): string | undefined {
+  const explicit = line.match(/^(?:course(?:\s+name)?|class(?:\s+name)?)\s*:\s*(.+)$/i)
+  if (explicit) return explicit[1].trim()
+  const heading = line.match(/^(.+?)\s+(?:syllabus)(?:\s*[-–—:].*)?$/i)
+  return heading?.[1].trim()
+}
+
 export function extractAssignmentsFromText(text: string): ParsedAssignment[] {
   const lines = normalizeTextForAssignmentParsing(text)
     .split(/\n+/)
@@ -62,10 +69,14 @@ export function extractAssignmentsFromText(text: string): ParsedAssignment[] {
 
   const parsed: ParsedAssignment[] = []
   const pattern = buildAssignmentMatchPattern()
+  let courseName: string | undefined
 
   for (const rawLine of lines) {
     const match = rawLine.match(pattern)
-    if (!match) continue
+    if (!match) {
+      courseName = courseHeader(rawLine) ?? courseName
+      continue
+    }
 
     const title = match[1].trim().replace(/\s+/g, ' ')
     const dueDateText = match[2].trim()
@@ -74,6 +85,7 @@ export function extractAssignmentsFromText(text: string): ParsedAssignment[] {
     parsed.push({
       id: `parsed-${crypto.randomUUID()}`,
       title,
+      courseName,
       dueDate: parsedDate ?? '',
       workHours: 1,
       workMinutes: 0,
@@ -98,10 +110,14 @@ export function extractAssignmentsFromPdfText(text: string): ParsedAssignment[] 
 
   const parsed: ParsedAssignment[] = []
   const pattern = buildAssignmentMatchPattern()
+  let courseName: string | undefined
 
   for (const line of lines) {
     const match = line.match(pattern)
-    if (!match) continue
+    if (!match) {
+      courseName = courseHeader(line) ?? courseName
+      continue
+    }
 
     const title = match[1].trim().replace(/\s+/g, ' ')
     const dueDateText = match[2].trim()
@@ -112,6 +128,7 @@ export function extractAssignmentsFromPdfText(text: string): ParsedAssignment[] 
     parsed.push({
       id: `parsed-${crypto.randomUUID()}`,
       title,
+      courseName,
       dueDate,
       workHours: 1,
       workMinutes: 0,
@@ -129,7 +146,7 @@ export function deduplicateImportedAssignments(assignments: ParsedAssignment[]):
   const seen = new Set<string>()
 
   return assignments.filter((entry) => {
-    const key = `${entry.title.toLowerCase().trim()}-${entry.dueDate}`
+    const key = `${entry.courseName?.trim().toLowerCase() ?? ""}|${entry.title.toLowerCase().trim()}-${entry.dueDate}`
     if (seen.has(key)) return false
     seen.add(key)
     return true
