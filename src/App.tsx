@@ -758,6 +758,13 @@ function SyllabusPage(props: PlannerProps) {
           {importStatus.message ? <div className={`status-message ${importStatus.kind}`}>{importStatus.message}</div> : null}
         </div>
 
+        {parsedAssignments.length > 0 ? <label>Class name for this syllabus
+          <input value={parsedAssignments.every((entry) => entry.courseName === parsedAssignments[0].courseName) ? parsedAssignments[0].courseName ?? '' : ''}
+            placeholder="e.g. English or Math"
+            onChange={(event) => parsedAssignments.forEach((entry) => updateParsedAssignment(entry.id, 'courseName', event.target.value))} />
+          <small>Applies to all assignments below. This class will appear in Settings after you import.</small>
+        </label> : null}
+
         <div className="parsed-list">
           {parsedAssignments.length === 0 ? (
             <div className="empty-state">No assignments extracted yet. Upload a file or paste syllabus text.</div>
@@ -2125,3 +2132,4 @@ export default function App() {
     </BrowserRouter>
   )
 }
+
