@@ -16,6 +16,8 @@ type Props = {
 export function CalendarCleanup(props: Props) {
   const { assignment, assignments, commitments } = props
   const [course, setCourse] = useState('')
+  const [labelName, setLabelName] = useState('')
+  const [selectedAssignments, setSelectedAssignments] = useState<number[]>([])
   const [pending, setPending] = useState<ClearScope | null>(null)
   const [message, setMessage] = useState('')
   const dialog = useRef<HTMLDialogElement>(null)
@@ -44,6 +46,21 @@ export function CalendarCleanup(props: Props) {
     <section className="panel calendar-cleanup" aria-labelledby="calendar-cleanup-title">
       <h2 id="calendar-cleanup-title">Homework and calendar</h2>
       <p>Dropping a class? Clear its assignments, study blocks, and linked busy times, or start over with an empty calendar.</p>
+      {assignments.some((item) => !normalizeCourseName(item.courseName)) ? <fieldset>
+        <legend>Label previously uploaded homework</legend>
+        <p>Older imports may have no class name. Select the assignments belonging to one class, enter its name, and save.</p>
+        {assignments.map((item, index) => !normalizeCourseName(item.courseName) ? <label key={index}>
+          <input type="checkbox" checked={selectedAssignments.includes(index)} onChange={(event) => setSelectedAssignments((current) => event.target.checked ? [...current, index] : current.filter((value) => value !== index))} />
+          {item.title} ({item.dueDate})
+        </label> : null)}
+        <label>Class name<input value={labelName} onChange={(event) => setLabelName(event.target.value)} placeholder="e.g. English or Math" /></label>
+        <button type="button" disabled={!labelName.trim() || selectedAssignments.length === 0} onClick={() => {
+          selectedAssignments.forEach((index) => props.onLabelAssignment(index, labelName.trim()))
+          setSelectedAssignments([])
+          setLabelName('')
+          setMessage('Class labels saved. Choose the class in the dropdown below.')
+        }}>Save class for selected homework</button>
+      </fieldset> : null}
       <details>
         <summary>Add or edit class labels</summary>
         <p>Use the same class name for related items, such as BIO-101. Unlabelled items stay separate; work and clubs only belong to a class if you label them.</p>
