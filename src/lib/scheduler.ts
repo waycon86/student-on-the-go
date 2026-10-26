@@ -17,6 +17,8 @@ export type Commitment = {
 export type StudySession = {
   id: string
   assignmentId: string
+  assignmentKey: string
+  courseName?: string
   milestone: string
   start: string
   end: string
@@ -39,6 +41,24 @@ export type AssignmentSettings = {
   roomNumber?: string
 }
 
+export function getAssignmentKey(assignment: AssignmentSettings): string {
+  return JSON.stringify([
+    (assignment.courseName ?? '').trim().replace(/\s+/g, ' ').toLowerCase(),
+    assignment.title,
+    assignment.dueDate,
+  ])
+}
+
+// Include the current editor once, using its latest settings rather than its saved copy.
+export function getPlanningAssignments(assignments: AssignmentSettings[], active: AssignmentSettings): AssignmentSettings[] {
+  const key = getAssignmentKey(active)
+  const saved = assignments.map((item) => getAssignmentKey(item) === key ? active : item)
+  if (active.title.trim() && active.totalWorkMinutes > 0 && !saved.some((item) => getAssignmentKey(item) === key)) {
+    saved.push(active)
+  }
+  return saved
+}
+
 export const MILESTONE_ORDER = ['Research', 'Outline', 'Draft', 'Revise'] as const
 
 export function buildMilestones(totalWorkMinutes: number) {
@@ -58,6 +78,10 @@ function normalizeDate(date: Date): Date {
   const normalized = new Date(date)
   normalized.setHours(0, 0, 0, 0)
   return normalized
+}
+
+function localDateKey(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
 
 function addDays(date: Date, days: number): Date {
@@ -93,7 +117,7 @@ function getOpenIntervals(
     { start: toDateTime(date, studyStart), end: toDateTime(date, studyEnd) },
   ]
 
-  const dayKey = date.toISOString().slice(0, 10)
+  const dayKey = localDateKey(date)
   const dayCommitments = commitments.filter((entry) => entry.date === dayKey)
   const allBlocked = [...dayCommitments.map((entry) => ({
     start: toDateTime(date, entry.start),
@@ -139,7 +163,7 @@ export function buildStudyPlan(
 
   for (let step = 0; step < totalDaysToCheck; step += 1) {
     const candidateDate = addDays(dueDate, -step)
-    const dayKey = candidateDate.toISOString().slice(0, 10)
+    const dayKey = localDateKey(candidateDate)
 
     if (!assignment.studyDays.includes(dayNameFromDate(candidateDate))) {
       continue
@@ -155,7 +179,7 @@ export function buildStudyPlan(
       assignment.studyEnd,
       commitments,
       blockedIntervals.filter((interval) => {
-        const sameDay = interval.start.toISOString().slice(0, 10) === dayKey
+        const sameDay = localDateKey(interval.start) === dayKey
         return sameDay
       }),
     )
@@ -172,7 +196,8 @@ export function buildStudyPlan(
 
       while (remainingWorkMinutes > 0 && cursor > interval.start) {
         const sessionStart = new Date(cursor)
-        sessionStart.setMinutes(sessionStart.getMinutes() - assignment.sessionMinutes)
+        const sessionMinutes = Math.min(assignment.sessionMinutes, remainingWorkMinutes)
+        sessionStart.setMinutes(sessionStart.getMinutes() - sessionMinutes)
 
         if (sessionStart < interval.start) {
           break
@@ -189,14 +214,16 @@ export function buildStudyPlan(
         sessions.push({
           id: sessionId,
           assignmentId: `${assignment.title}-${dayKey}`,
+          assignmentKey: getAssignmentKey(assignment),
+          courseName: assignment.courseName,
           milestone: MILESTONE_ORDER[(sessions.length + 1) % MILESTONE_ORDER.length],
           start: sessionStart.toISOString(),
           end: sessionEnd.toISOString(),
           status: 'planned',
         })
 
-        totalCapacityMinutes += assignment.sessionMinutes
-        remainingWorkMinutes -= assignment.sessionMinutes
+        totalCapacityMinutes += sessionMinutes
+        remainingWorkMinutes -= sessionMinutes
         cursor = new Date(sessionStart)
       }
     }
