@@ -42,7 +42,7 @@ export function CalendarCleanup(props: Props) {
 
   return (
     <section className="panel calendar-cleanup" aria-labelledby="calendar-cleanup-title">
-      <h2 id="calendar-cleanup-title">Manage calendar</h2>
+      <h2 id="calendar-cleanup-title">Homework and calendar</h2>
       <p>Dropping a class? Clear its assignments, study blocks, and linked busy times, or start over with an empty calendar.</p>
       <details>
         <summary>Add or edit class labels</summary>

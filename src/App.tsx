@@ -793,11 +793,10 @@ function SyllabusPage(props: PlannerProps) {
   )
 }
 
-function CalendarPage({ assignment, confirmedAssignments, commitments, sessions, cleanup, completedItems, onToggleComplete }: {
+function CalendarPage({ assignment, confirmedAssignments, commitments, sessions, completedItems, onToggleComplete }: {
   confirmedAssignments: AssignmentSettings[]
   commitments: Commitment[]
   sessions: StudySession[]
-  cleanup: React.ReactNode
   completedItems: Record<string, boolean>
   onToggleComplete: (item: CalendarItem, completed: boolean) => void
   assignment: AssignmentSettings
@@ -945,7 +944,7 @@ function CalendarPage({ assignment, confirmedAssignments, commitments, sessions,
           ))}
         </ul> : null}
       </section>
-      <details className="calendar-manage"><summary>Manage calendar &amp; clear a class</summary>{cleanup}</details>
+      <p className="field-hint">Need to clear a class or start over? <NavLink to="/settings">Manage homework and calendar in Settings</NavLink>.</p>
       <dialog ref={detailDialog} className="calendar-event-dialog" aria-labelledby="calendar-event-title" onCancel={() => setSelectedItemId('')} onClose={() => setSelectedItemId('')}>
         {selectedItem ? (
           <>
@@ -1493,6 +1492,7 @@ function SettingsPage({
   isDark,
   setIsDark,
   settingsSavedMessage,
+  calendarManagement,
 }: {
   selectedThemeId: SchoolThemeId
   onCollegeChange: (nextThemeId: SchoolThemeId) => void
@@ -1502,6 +1502,7 @@ function SettingsPage({
   isDark: boolean
   setIsDark: React.Dispatch<React.SetStateAction<boolean>>
   settingsSavedMessage: string
+  calendarManagement: React.ReactNode
 }) {
   const [collegeSearch, setCollegeSearch] = useState('')
   const [campusSearch, setCampusSearch] = useState('')
@@ -1557,6 +1558,7 @@ function SettingsPage({
           {settingsSavedMessage ? <p className="status-message success">{settingsSavedMessage}</p> : null}
         </div>
       </section>
+      {calendarManagement}
     </main>
   )
 }
@@ -2067,20 +2069,7 @@ function AppContent() {
           <Route path="/calendar" element={<CalendarPage assignment={assignment} confirmedAssignments={confirmedAssignments} commitments={commitments} sessions={sessions} completedItems={completedCalendarItems} onToggleComplete={(item, completed) => {
             if (item.kind === 'study') updateSessionStatus(item.id, completed ? 'completed' : 'planned')
             else setCompletedCalendarItems((current) => ({ ...current, [item.id]: completed }))
-          }} cleanup={<CalendarCleanup
-            assignment={assignment}
-            assignments={confirmedAssignments}
-            commitments={commitments}
-            sessionCount={sessions.length}
-            onLabelActive={labelActiveAssignment}
-            onLabelAssignment={(index, courseName) => {
-              const item = confirmedAssignments[index]
-              setConfirmedAssignments((current) => current.map((entry, position) => position === index ? { ...entry, courseName } : entry))
-              if (item.title === assignment.title && item.dueDate === assignment.dueDate && normalizeCourseName(item.courseName) === normalizeCourseName(assignment.courseName)) setAssignment((current) => ({ ...current, courseName }))
-            }}
-            onLabelCommitment={(id, courseName) => setCommitments((current) => current.map((item) => item.id === id ? { ...item, courseName } : item))}
-            onClear={clearCalendar}
-          />} />} />
+          }} />} />
           <Route path="/schedule" element={<MySchedulePage {...pageProps} />} />
           <Route path="/campus-map" element={<CampusMapPage selectedCampusId={selectedCampusId} confirmedAssignments={confirmedAssignments} commitments={commitments} />} />
           <Route
@@ -2095,6 +2084,20 @@ function AppContent() {
                 isDark={isDark}
                 setIsDark={setIsDark}
                 settingsSavedMessage={settingsSavedMessage}
+                calendarManagement={<CalendarCleanup
+                  assignment={assignment}
+                  assignments={confirmedAssignments}
+                  commitments={commitments}
+                  sessionCount={sessions.length}
+                  onLabelActive={labelActiveAssignment}
+                  onLabelAssignment={(index, courseName) => {
+                    const item = confirmedAssignments[index]
+                    setConfirmedAssignments((current) => current.map((entry, position) => position === index ? { ...entry, courseName } : entry))
+                    if (item.title === assignment.title && item.dueDate === assignment.dueDate && normalizeCourseName(item.courseName) === normalizeCourseName(assignment.courseName)) setAssignment((current) => ({ ...current, courseName }))
+                  }}
+                  onLabelCommitment={(id, courseName) => setCommitments((current) => current.map((item) => item.id === id ? { ...item, courseName } : item))}
+                  onClear={clearCalendar}
+                />}
               />
             )}
           />
