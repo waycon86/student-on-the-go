@@ -51,3 +51,10 @@ assert.deepEqual(
 )
 
 console.log('syllabus tests passed')
+
+for (const parse of [extractAssignmentsFromText, extractAssignmentsFromPdfText]) {
+  const courses = parse('Course: English\nEssay — 2026-10-29\nMath Syllabus\nEssay — 2026-10-29')
+  assert.deepEqual(courses.map((entry) => entry.courseName), ['English', 'Math'])
+  assert.equal(deduplicateImportedAssignments(courses).length, 2)
+  assert.equal(parse('Essay — 2026-10-29')[0].courseName, undefined)
+}
