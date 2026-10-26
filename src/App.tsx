@@ -1,5 +1,5 @@
 import { CalendarCleanup } from './components/CalendarCleanup'
-import { clearCalendarItems, hasActiveAssignment, normalizeCourseName, type ClearScope } from './lib/calendarCleanup'
+import { clearCalendarItems, hasActiveAssignment, matchesClearScope, normalizeCourseName, type ClearScope } from './lib/calendarCleanup'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { BrowserRouter, NavLink, Navigate, Route, Routes, useLocation, useSearchParams } from 'react-router-dom'
 import { CircleMarker, MapContainer, Popup, TileLayer, useMap } from 'react-leaflet'
@@ -7,6 +7,8 @@ import {
   buildMilestones,
   buildMultiAssignmentPlan,
   buildStudyPlan,
+  getAssignmentKey,
+  getPlanningAssignments,
   rescheduleMissedSessions,
   type AssignmentSettings,
   type Commitment,
@@ -72,6 +74,7 @@ type ReadStatus = {
 type PlannerProps = {
   assignment: AssignmentSettings
   setAssignment: React.Dispatch<React.SetStateAction<AssignmentSettings>>
+  loadAssignment: (assignment: AssignmentSettings) => void
   commitments: Commitment[]
   setCommitments: React.Dispatch<React.SetStateAction<Commitment[]>>
   draftCommitment: DraftCommitment
@@ -99,8 +102,10 @@ type PlannerProps = {
   totalWorkMinutes: number
   workTotalValid: boolean
   sessions: StudySession[]
+  activeSessions: StudySession[]
   milestones: ReturnType<typeof buildMilestones>
   completedMinutes: number
+  activeCompletedMinutes: number
   unscheduledMinutes: number
   selectedFileName: string
   readStatus: ReadStatus
@@ -354,9 +359,11 @@ function TodayPage(props: PlannerProps) {
   const upcomingAssignments = [...confirmedAssignments].sort(
     (a, b) => new Date(`${a.dueDate}T00:00:00`).getTime() - new Date(`${b.dueDate}T00:00:00`).getTime(),
   )
-  const nextSession = sessions[0]
-  const todayCommitments = commitments.filter((commitment) => commitment.date === new Date().toISOString().slice(0, 10))
-  const todayStudyBlocks = sessions.filter((session) => session.start.slice(0, 10) === new Date().toISOString().slice(0, 10))
+  const nextSession = sessions.find((session) => session.status !== 'completed')
+  const localDate = (value: Date) => `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`
+  const today = localDate(props.now)
+  const todayCommitments = commitments.filter((commitment) => commitment.date === today)
+  const todayStudyBlocks = sessions.filter((session) => localDate(new Date(session.start)) === today)
 
   return (
     <main className="page-content mobile-page-content">
@@ -419,10 +426,10 @@ function TodayPage(props: PlannerProps) {
             {nextSession ? (
               <div className="mini-list">
                 <strong>{formatSessionAssignmentTitle(nextSession.assignmentId)}</strong>
-                <p>{formatDate(nextSession.start.slice(0, 10))} • {formatTime(new Date(nextSession.start))}–{formatTime(new Date(nextSession.end))}</p>
+                <p>{formatDate(localDate(new Date(nextSession.start)))} • {formatTime(new Date(nextSession.start))}–{formatTime(new Date(nextSession.end))}</p>
               </div>
             ) : (
-              <div className="empty-state">No study blocks are scheduled yet. Add an assignment to get started.</div>
+              <div className="empty-state">{combinedPlan.remainingWorkMinutes > 0 ? 'No study time fits your deadlines and availability.' : 'No unfinished study blocks are scheduled.'} <NavLink to="/planner">Open Planner</NavLink> to review your due dates and study hours.</div>
             )}
           </div>
 
@@ -512,7 +519,7 @@ function TodayPage(props: PlannerProps) {
           </div>
           <div className="summary-card warning">
             <span>Time that won’t fit</span>
-            <strong>{formatMinutes(props.unscheduledMinutes)}</strong>
+            <strong>{formatMinutes(combinedPlan.remainingWorkMinutes)}</strong>
           </div>
         </div>
       </section>
@@ -521,7 +528,7 @@ function TodayPage(props: PlannerProps) {
 }
 
 function PlannerPage(props: PlannerProps) {
-  const { assignment, workTotalValid, plan, milestones, unscheduledMinutes, updateWorkField, workInput, setAssignment, toggleStudyDay, sessions } = props
+  const { assignment, workTotalValid, plan, milestones, unscheduledMinutes, updateWorkField, workInput, setAssignment, toggleStudyDay, activeSessions: sessions } = props
   const previewRef = useRef<HTMLElement>(null)
   const validSettings = Boolean(assignment.title.trim() && /^\d{4}-\d{2}-\d{2}$/.test(assignment.dueDate) && workTotalValid && assignment.sessionMinutes >= 15 && assignment.studyDays.length && assignment.studyStart < assignment.studyEnd)
   const safeDeadline = new Date(`${assignment.dueDate}T23:59:59`)
@@ -540,14 +547,13 @@ function PlannerPage(props: PlannerProps) {
           <select value="" onChange={(event) => {
             if (event.target.value === '') return
             const selected = props.confirmedAssignments[Number(event.target.value)]
-            setAssignment({ ...selected })
-            props.setWorkInput({ hours: Math.floor(selected.totalWorkMinutes / 60), minutes: selected.totalWorkMinutes % 60 })
+            props.loadAssignment(selected)
           }}>
             <option value="">Choose an assignment…</option>
             {props.confirmedAssignments.map((item, index) => <option key={index} value={index}>{item.courseName ? `${item.courseName} · ` : ''}{item.title} · {formatDate(item.dueDate)}</option>)}
           </select>
         </label> : <NavLink to="/syllabus">Import assignments from a syllabus</NavLink>}
-        <p className="workflow-help">Your current plan updates as you change these settings. Imported assignment records are kept separately.</p>
+        <p className="workflow-help">Your plan updates as you change these settings. Study time is shared across all your assignments.</p>
         <div className="planner-setup-grid">
         <fieldset className="planner-step"><legend>1. Assignment &amp; deadline</legend>
         <label>Assignment title<input value={assignment.title} onChange={(event) => setAssignment((current) => ({ ...current, title: event.target.value }))} /></label>
@@ -617,7 +623,7 @@ function PlannerPage(props: PlannerProps) {
             </li>)}
           </ol>
           {lastSession ? <p>Last scheduled session ends {dateTime(lastSession.end)}.</p> : <p>No study sessions fit. Adjust your availability above.</p>}
-          <p className="workflow-help">Scheduled: {formatMinutes(plan.plannedMinutes)} · Completed: {formatMinutes(props.completedMinutes)}</p>
+          <p className="workflow-help">Scheduled: {formatMinutes(plan.plannedMinutes)} · Completed: {formatMinutes(props.activeCompletedMinutes)}</p>
           <div className="planner-preview-actions"><NavLink className="primary-link-button" to="/calendar">Open calendar</NavLink><button type="button" className="secondary-button" onClick={props.rescheduleUnfinished}>Reschedule unfinished work</button></div>
           <details><summary>Suggested work breakdown</summary><p>These are time estimates for organizing the assignment, rather than dated milestones.</p><ul>{milestones.map((milestone) => <li key={milestone.name}>{milestone.name}: {formatMinutes(milestone.minutes)}</li>)}</ul></details>
         </>}
@@ -756,6 +762,10 @@ function SyllabusPage(props: PlannerProps) {
           {readStatus.message ? <div className={`status-message ${readStatus.kind}`}>{readStatus.message}</div> : null}
           {readStatus.preview ? <div className="source-text-box"><strong>Extracted text preview</strong><p>{readStatus.preview}</p></div> : null}
           {importStatus.message ? <div className={`status-message ${importStatus.kind}`}>{importStatus.message}</div> : null}
+          {props.confirmedAssignments.length > 0 && importStatus.kind !== 'idle' ? <div className="getting-started-actions">
+            <NavLink className="getting-started-primary" to="/planner">Open study plan</NavLink>
+            <NavLink className="getting-started-secondary" to="/calendar">See all study sessions on calendar</NavLink>
+          </div> : null}
         </div>
 
         {parsedAssignments.length > 0 ? <label>Class name for this syllabus
@@ -869,7 +879,7 @@ function CalendarPage({ assignment, confirmedAssignments, commitments, sessions,
       title: formatSessionAssignmentTitle(session.assignmentId),
       date: `${new Date(session.start).getFullYear()}-${String(new Date(session.start).getMonth() + 1).padStart(2, '0')}-${String(new Date(session.start).getDate()).padStart(2, '0')}`,
       kind: 'study' as const,
-      courseName: assignment.courseName,
+      courseName: session.courseName,
       start: session.start,
       end: session.end,
     }))
@@ -889,6 +899,7 @@ function CalendarPage({ assignment, confirmedAssignments, commitments, sessions,
 
   const visibleItems = items.filter((item) => item.date >= dateKey(rangeStart) && item.date < dateKey(rangeEnd))
   const selectedItem = visibleItems.find((item) => item.id === selectedItemId) ?? null
+  const nextStudySession = sessions.find((session) => session.status !== 'completed')
 
   return (
     <main className="page-content calendar-page">
@@ -906,6 +917,7 @@ function CalendarPage({ assignment, confirmedAssignments, commitments, sessions,
         <label className="calendar-jump">Go to date<input type="date" value={dateKey(calendarDate)} onChange={(event) => { if (event.target.value) { setCalendarDate(new Date(`${event.target.value}T12:00:00`)); setSelectedItemId('') } }} /></label>
         </div>
         <p className="workflow-help">Select an event for details or to mark it done. Select a date to open its day.</p>
+        {nextStudySession ? <button type="button" className="secondary-button" onClick={() => { setCalendarDate(new Date(nextStudySession.start)); setView('week'); setSelectedItemId('') }}>Show my next study session</button> : null}
         <div className="calendar-legend" aria-label="Event types"><span className="calendar-event-label assignment">Deadline</span><span className="calendar-event-label study">Study</span><span className="calendar-event-label commitment">Busy time</span></div>
         {view !== 'day' ? <div className={`calendar-date-grid ${view}`}>
           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => <span key={day} className="calendar-weekday" aria-hidden="true">{day}</span>)}
@@ -1752,11 +1764,17 @@ function AppContent() {
 
   const totalWorkMinutes = useMemo(() => totalMinutesFromWorkInput(workInput), [workInput])
   const workTotalValid = totalWorkMinutes > 0
-  const combinedPlan = useMemo(() => buildMultiAssignmentPlan(confirmedAssignments, commitments, now), [confirmedAssignments, commitments, now])
-  const plan = useMemo(() => buildStudyPlan({ ...assignment, totalWorkMinutes }, commitments, now), [assignment, commitments, now, totalWorkMinutes])
-  const sessions = useMemo(() => plan.sessions.map((session) => ({ ...session, status: sessionStatusMap[session.id] ?? session.status })), [plan.sessions, sessionStatusMap])
+  const planningAssignments = useMemo(() => getPlanningAssignments(confirmedAssignments, assignment), [confirmedAssignments, assignment])
+  const combinedPlan = useMemo(() => buildMultiAssignmentPlan(planningAssignments, commitments, now), [planningAssignments, commitments, now])
+  const sessions = useMemo(() => combinedPlan.sessions.map((session) => ({ ...session, status: sessionStatusMap[session.id] ?? session.status })), [combinedPlan.sessions, sessionStatusMap])
+  const activeSessions = useMemo(() => sessions.filter((session) => session.assignmentKey === getAssignmentKey(assignment)), [sessions, assignment])
+  const plan = useMemo(() => {
+    const plannedMinutes = activeSessions.reduce((total, session) => total + Math.round((new Date(session.end).getTime() - new Date(session.start).getTime()) / 60000), 0)
+    return { sessions: activeSessions, plannedMinutes, remainingWorkMinutes: Math.max(totalWorkMinutes - plannedMinutes, 0), totalCapacityMinutes: plannedMinutes }
+  }, [activeSessions, totalWorkMinutes])
   const milestones = useMemo(() => buildMilestones(assignment.totalWorkMinutes), [assignment.totalWorkMinutes])
-  const completedMinutes = sessions.filter((session) => session.status === 'completed').reduce((total) => total + assignment.sessionMinutes, 0)
+  const completedMinutes = sessions.filter((session) => session.status === 'completed').reduce((total, session) => total + Math.round((new Date(session.end).getTime() - new Date(session.start).getTime()) / 60000), 0)
+  const activeCompletedMinutes = activeSessions.filter((session) => session.status === 'completed').reduce((total, session) => total + Math.round((new Date(session.end).getTime() - new Date(session.start).getTime()) / 60000), 0)
   const unscheduledMinutes = Math.max(plan.remainingWorkMinutes, 0)
 
   const parseSyllabusText = (sourceText: string, sourceKind: 'txt' | 'pdf' = 'txt') => {
@@ -1768,7 +1786,7 @@ function AppContent() {
     const safeValue = Number.isFinite(nextValue) ? Math.max(0, Math.trunc(nextValue)) : 0
     const nextInput = { ...workInput, [field]: field === 'minutes' ? Math.min(59, safeValue) : safeValue }
     setWorkInput(nextInput)
-    setAssignment((current) => ({ ...current, totalWorkMinutes: totalMinutesFromWorkInput(nextInput) }))
+    editAssignment((current) => ({ ...current, totalWorkMinutes: totalMinutesFromWorkInput(nextInput) }))
   }
 
   const handleSyllabusFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -1852,6 +1870,7 @@ function AppContent() {
     }
 
     setConfirmedAssignments((current) => [...current, assignmentToAdd])
+    loadAssignment(assignmentToAdd)
     setParsedAssignments((current) => current.map((item) => (item.id === entry.id ? { ...item, status: 'confirmed' } : item)))
     setImportStatus({ kind: 'success', message: `Saved ${entry.title} to your planner.` })
   }
@@ -1908,6 +1927,7 @@ function AppContent() {
     }
 
     setConfirmedAssignments((current) => [...current, ...newEntries])
+    loadAssignment([...newEntries].sort((a, b) => a.dueDate.localeCompare(b.dueDate))[0])
     setParsedAssignments((current) => current.map((entry) => ({ ...entry, status: 'confirmed' })))
     setImportStatus({ kind: 'success', message: `Imported ${newEntries.length} assignment${newEntries.length === 1 ? '' : 's'} successfully.` })
   }
@@ -1942,6 +1962,12 @@ function AppContent() {
     }))
   }
 
+  const loadAssignment = (next: AssignmentSettings) => {
+    setConfirmedAssignments((current) => getPlanningAssignments(current, assignment))
+    setAssignment({ ...next })
+    setWorkInput(hoursAndMinutesFromTotal(next.totalWorkMinutes))
+  }
+
   const editAssignment: React.Dispatch<React.SetStateAction<AssignmentSettings>> = (update) => {
     const next = typeof update === 'function' ? update(assignment) : update
     setAssignment(next)
@@ -1955,8 +1981,9 @@ function AppContent() {
     if (result.removeActive) {
       setAssignment(result.assignment)
       setWorkInput({ hours: 0, minutes: 0 })
-      setSessionStatusMap({})
     }
+    const removedSessionIds = new Set(sessions.filter((session) => matchesClearScope(session, scope)).map((session) => session.id))
+    setSessionStatusMap((current) => scope.kind === 'all' ? {} : Object.fromEntries(Object.entries(current).filter(([id]) => !removedSessionIds.has(id))))
   }
 
   const labelActiveAssignment = (courseName: string) => {
@@ -1971,7 +1998,7 @@ function AppContent() {
   }
 
   const rescheduleUnfinished = () => {
-    const refreshed = rescheduleMissedSessions(sessions, assignment, commitments, now)
+    const refreshed = rescheduleMissedSessions(activeSessions, assignment, commitments, now)
     setSessionStatusMap((current) => {
       const next = { ...current }
       for (const session of refreshed) next[session.id] = session.status
@@ -1980,7 +2007,7 @@ function AppContent() {
   }
 
   const toggleStudyDay = (day: (typeof daysOfWeek)[number]) => {
-    setAssignment((current) => ({
+    editAssignment((current) => ({
       ...current,
       studyDays: current.studyDays.includes(day) ? current.studyDays.filter((entry) => entry !== day) : [...current.studyDays, day],
     }))
@@ -2002,6 +2029,7 @@ function AppContent() {
   const pageProps: PlannerProps = {
     assignment,
     setAssignment: editAssignment,
+    loadAssignment,
     commitments,
     setCommitments,
     draftCommitment,
@@ -2029,8 +2057,10 @@ function AppContent() {
     totalWorkMinutes,
     workTotalValid,
     sessions,
+    activeSessions,
     milestones,
     completedMinutes,
+    activeCompletedMinutes,
     unscheduledMinutes,
     selectedFileName,
     readStatus,
@@ -2095,7 +2125,7 @@ function AppContent() {
                   assignment={assignment}
                   assignments={confirmedAssignments}
                   commitments={commitments}
-                  sessionCount={sessions.length}
+                  sessions={sessions}
                   onLabelActive={labelActiveAssignment}
                   onLabelAssignment={(index, courseName) => {
                     const item = confirmedAssignments[index]

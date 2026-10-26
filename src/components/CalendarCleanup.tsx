@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
-import type { AssignmentSettings, Commitment } from '../lib/scheduler'
-import { hasActiveAssignment, normalizeCourseName, previewCalendarClear, type ClearScope } from '../lib/calendarCleanup'
+import type { AssignmentSettings, Commitment, StudySession } from '../lib/scheduler'
+import { hasActiveAssignment, matchesClearScope, normalizeCourseName, previewCalendarClear, type ClearScope } from '../lib/calendarCleanup'
 
 type Props = {
   assignment: AssignmentSettings
   assignments: AssignmentSettings[]
   commitments: Commitment[]
-  sessionCount: number
+  sessions: StudySession[]
   onLabelActive: (name: string) => void
   onLabelAssignment: (index: number, name: string) => void
   onLabelCommitment: (id: string, name: string) => void
@@ -32,6 +32,7 @@ export function CalendarCleanup(props: Props) {
   const hasItems = hasActiveAssignment(assignment) || assignments.length > 0 || commitments.length > 0
   const selectedCourseExists = course === '__unassigned__' ? hasUnassigned : courses.has(course)
   const preview = pending ? previewCalendarClear(assignment, assignments, commitments, pending) : null
+  const removedSessionCount = pending ? props.sessions.filter((session) => matchesClearScope(session, pending)).length : 0
   const scopeLabel = pending?.kind === 'all' ? 'all calendar items' : pending?.courseName.trim() || 'unassigned items'
   const close = () => { dialog.current?.close(); setPending(null) }
 
@@ -87,7 +88,7 @@ export function CalendarCleanup(props: Props) {
       <dialog ref={dialog} className="calendar-clear-dialog" aria-labelledby="calendar-clear-title" onCancel={() => setPending(null)} onClose={() => setPending(null)}>
         {pending && preview ? <>
           <h2 id="calendar-clear-title">Clear {scopeLabel}?</h2>
-          <p>This removes {preview.assignmentCount} assignment{preview.assignmentCount === 1 ? '' : 's'}, {preview.removedCommitments.length} busy time{preview.removedCommitments.length === 1 ? '' : 's'}, and {preview.removeActive ? props.sessionCount : 0} currently shown study block{preview.removeActive && props.sessionCount === 1 ? '' : 's'}.</p>
+          <p>This removes {preview.assignmentCount} assignment{preview.assignmentCount === 1 ? '' : 's'}, {preview.removedCommitments.length} busy time{preview.removedCommitments.length === 1 ? '' : 's'}, and {removedSessionCount} study block{removedSessionCount === 1 ? '' : 's'}.</p>
           <ul className="calendar-removal-preview">
             {preview.removeActive && !preview.activeAlreadyListed ? <li>Current assignment: {assignment.title || 'Untitled'}</li> : null}
             {preview.removedAssignments.map((item, index) => <li key={`a-${index}`}>Saved assignment: {item.title} ({item.dueDate})</li>)}

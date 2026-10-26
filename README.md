@@ -125,6 +125,8 @@ Project foundation and assets used:
 
 ## Clearing a calendar or dropping a class
 
+After a syllabus import, select **Open study plan** to review an imported assignment in Planner, or **See all study sessions on calendar** for the shared schedule across your classes. Today, Calendar, and My Schedule show study sessions for all saved assignments. Planner shows the selected assignment's sessions from that same schedule. Use **Show my next study session** in Calendar to jump to its week. If no time fits, review future due dates, study days, study hours, and the finish-early buffer in Planner.
+
 Open **Settings → Homework and calendar**. Choose a class and select **Clear one class**, or select **Clear all** to start over. Review the assignments, linked busy times, and study blocks, then confirm. Cancel or Escape leaves your calendar unchanged. Clearing cannot be undone; college and appearance settings remain saved. The Calendar page also links to Settings.
 
 Use the optional **Class name** field on assignments, syllabus review entries, and busy times. Existing items can be labelled under **Add or edit class labels** in Settings. Matching ignores capitalization and extra spaces but requires the same class name; unassigned items are separate and can be cleared explicitly. A class is never inferred from a title or campus building. Clearing one class preserves other saved items, although remaining study blocks can move into newly available time. Syllabus review drafts remain available for an explicit later import.

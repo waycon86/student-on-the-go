@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { buildMilestones, buildMultiAssignmentPlan, buildStudyPlan, rescheduleMissedSessions, type AssignmentSettings, type Commitment } from './scheduler.ts'
+import { buildMilestones, buildMultiAssignmentPlan, buildStudyPlan, getAssignmentKey, getPlanningAssignments, rescheduleMissedSessions, type AssignmentSettings, type Commitment } from './scheduler.ts'
 
 const assignment: AssignmentSettings = {
   title: 'Essay',
@@ -67,7 +67,7 @@ assert.equal(
   multiPlan.sessions.every((session, index, list) => {
     if (index === 0) return true
     return new Date(session.start).getTime() >= new Date(list[index - 1].end).getTime()
-  }) || true,
+  }),
   true,
   'multi-assignment sessions should avoid overlaps when shared study windows are used',
 )
@@ -78,5 +78,38 @@ assert.deepEqual(
   ['Research', 'Outline', 'Draft', 'Revise'],
   'milestones should follow required chronological order',
 )
+
+
+// Clearing the editor must not hide the plans for already imported classes.
+const english = { ...assignment, courseName: 'English', title: 'Final project' }
+const math = { ...assignment, courseName: 'Math', title: 'Final project' }
+const emptyEditor = { ...assignment, title: '', totalWorkMinutes: 0 }
+const imported = [english, math]
+const allAssignments = getPlanningAssignments(imported, emptyEditor)
+const importedPlan = buildMultiAssignmentPlan(allAssignments, commitments, now)
+assert.equal(allAssignments.length, 2)
+assert.deepEqual(new Set(importedPlan.sessions.map((session) => session.courseName)), new Set(['English', 'Math']))
+assert.equal(new Set(importedPlan.sessions.map((session) => session.assignmentKey)).size, 2, 'identical project names in different classes need separate previews')
+assert.equal(new Set(importedPlan.sessions.map((session) => session.id)).size, importedPlan.sessions.length)
+assert.equal(importedPlan.remainingWorkMinutes, 0)
+assert.equal(importedPlan.sessions.every((session, index, list) => index === 0 || new Date(session.start) >= new Date(list[index - 1].end)), true)
+assert.equal(importedPlan.sessions.every((session) => commitments.every((busy) => {
+  return new Date(session.end) <= new Date(`${busy.date}T${busy.start}`) || new Date(session.start) >= new Date(`${busy.date}T${busy.end}`)
+})), true, 'both classes must avoid busy times')
+
+const updatedEnglish = { ...english, totalWorkMinutes: 180 }
+const withEditor = getPlanningAssignments(imported, updatedEnglish)
+assert.equal(withEditor.length, 2, 'the selected imported assignment must not be scheduled twice')
+assert.equal(withEditor.find((entry) => getAssignmentKey(entry) === getAssignmentKey(english))?.totalWorkMinutes, 180)
+assert.equal(imported[0].totalWorkMinutes, 360, 'assembling a plan must not mutate saved records')
+assert.equal(getPlanningAssignments(imported, { ...assignment, title: 'New assignment' }).length, 3, 'manual assignments must join the shared calendar')
+assert.equal(buildMultiAssignmentPlan(getPlanningAssignments([], emptyEditor), commitments, now).sessions.length, 0, 'clear all must leave no study sessions')
+const expiredPlan = buildMultiAssignmentPlan([english], [], new Date('2026-10-28T08:00:00'))
+assert.equal(expiredPlan.sessions.length, 0)
+assert.equal(expiredPlan.remainingWorkMinutes, english.totalWorkMinutes, 'past deadlines must report work that cannot fit')
+
+const oneHourImport = buildMultiAssignmentPlan([{ ...english, totalWorkMinutes: 60, sessionMinutes: 90 }], [], now)
+assert.equal(oneHourImport.plannedMinutes, 60, 'an import shorter than the preferred session length must use its actual work estimate')
+assert.equal(new Date(oneHourImport.sessions[0].end).getTime() - new Date(oneHourImport.sessions[0].start).getTime(), 60 * 60000)
 
 console.log('scheduler tests passed')
